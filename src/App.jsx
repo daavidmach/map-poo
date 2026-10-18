@@ -6,16 +6,50 @@ import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import './App.css'
 
-// ── Kraj NUTS3 IDs → farby (hranice sa fetchujú z Eurostat GISCO) ─────────────
+// ── POO Komponenty SR — číselné kódy K01–K16, R ──────────────────────────────
+// Zdroj: ispo.planobnovy.sk — kódy investícií / reforiem
+const KN_MAP = [
+  null,
+  { l:'Zdravotníctvo',           icon:'🏥', c:'#ef5350' },  // K01
+  { l:'Zdravotníctvo — dlhodobá starostlivosť', icon:'🏥', c:'#e57373' },  // K02
+  { l:'Energetická efektívnosť', icon:'⚡', c:'#FDD835' },  // K03
+  { l:'Obnoviteľné zdroje',      icon:'☀️', c:'#66BB6A' },  // K04
+  { l:'Zelená ekonomika',        icon:'🌱', c:'#4CAF50' },  // K05
+  { l:'Udržateľná doprava',      icon:'🚌', c:'#26C6DA' },  // K06
+  { l:'Digitalizácia VS',        icon:'🖥️', c:'#42A5F5' },  // K07
+  { l:'Digitalizácia ekonomiky', icon:'💻', c:'#1E88E5' },  // K08
+  { l:'Veda a výskum',           icon:'🔬', c:'#7ada9c' },  // K09
+  { l:'Vzdelávanie',             icon:'🎓', c:'#b07af0' },  // K10
+  { l:'Vzdelávanie — školy',     icon:'📚', c:'#9C27B0' },  // K11
+  { l:'Trh práce / soc. inklúzia',icon:'💼', c:'#7ab8da' }, // K12
+  { l:'Zdravotníctvo III',       icon:'💊', c:'#ec407a' },  // K13
+  { l:'Inovácie / financovanie', icon:'💡', c:'#FF9800' },  // K14
+  { l:'Rozvoj regiónov',         icon:'🏘️', c:'#78909C' },  // K15
+  { l:'Infraštruktúra',          icon:'🏗️', c:'#FF7043' },  // K16
+]
+function kodMeta(kat) {
+  if (!kat) return null
+  const k = kat.trim().toUpperCase()
+  if (k.startsWith('R')) return { l:'Reformy', icon:'⚖️', c:'#CE93D8' }
+  const m = k.match(/^K(\d+)/)
+  if (m) {
+    const n = parseInt(m[1], 10)
+    if (n > 0 && n < KN_MAP.length && KN_MAP[n]) return KN_MAP[n]
+    return { l:`Komponent K${String(n).padStart(2,'0')}`, icon:'📋', c:'#546E7A' }
+  }
+  return { l: kat, icon:'📋', c:'#546E7A' }
+}
+
+// ── Kraj NUTS3 IDs + choropleth farby ─────────────────────────────────────────
 const KRAJE = [
-  { nuts:'SK010', name:'Bratislavský kraj',   short:'Bratislavský', color:'#D9CA8C' },
-  { nuts:'SK021', name:'Trnavský kraj',       short:'Trnavský',     color:'#CCCF82' },
-  { nuts:'SK022', name:'Trenčiansky kraj',    short:'Trenčiansky',  color:'#99BC7A' },
-  { nuts:'SK023', name:'Nitriansky kraj',     short:'Nitriansky',   color:'#BECA78' },
-  { nuts:'SK031', name:'Žilinský kraj',       short:'Žilinský',     color:'#7DAA6C' },
-  { nuts:'SK032', name:'Banskobystrický kraj',short:'Banskobystrický',color:'#6A965C' },
-  { nuts:'SK041', name:'Prešovský kraj',      short:'Prešovský',    color:'#7C9C64' },
-  { nuts:'SK042', name:'Košický kraj',        short:'Košický',      color:'#94AA6E' },
+  { nuts:'SK010', name:'Bratislavský kraj',   short:'Bratislavský', color:'#5C8AFF' },
+  { nuts:'SK021', name:'Trnavský kraj',       short:'Trnavský',     color:'#FF9F43' },
+  { nuts:'SK022', name:'Trenčiansky kraj',    short:'Trenčiansky',  color:'#48DBFB' },
+  { nuts:'SK023', name:'Nitriansky kraj',     short:'Nitriansky',   color:'#FF6B9D' },
+  { nuts:'SK031', name:'Žilinský kraj',       short:'Žilinský',     color:'#1DD1A1' },
+  { nuts:'SK032', name:'Banskobystrický kraj',short:'Banskobystrický',color:'#FECA57'},
+  { nuts:'SK041', name:'Prešovský kraj',      short:'Prešovský',    color:'#A29BFE' },
+  { nuts:'SK042', name:'Košický kraj',        short:'Košický',      color:'#FD79A8' },
 ]
 
 // ── Okres centroids [lat, lng] ────────────────────────────────────────────────
@@ -62,26 +96,63 @@ const OKRES = {
 
 // ── Stav metadata ─────────────────────────────────────────────────────────────
 const STAV_META = {
-  PROJEKT_UKONCENY:               { c:'#4CAF50', l:'Ukončený' },
-  PROJEKT_V_REALIZACII:           { c:'#2196F3', l:'V realizácii' },
-  ZMLUVA_UZAVRETA:                { c:'#FF9800', l:'Zmluva uzavretá' },
-  ZIADOST_SCHVALENA:              { c:'#9C27B0', l:'Žiadosť schválená' },
-  ZIADOST_PODANA:                 { c:'#607D8B', l:'Žiadosť podaná' },
-  PROJEKT_ZRUSENY:                { c:'#f44336', l:'Zrušený' },
-  PREDPRIPRAVENY:                 { c:'#FDD835', l:'Predpripravený' },
-  NESTANDARDNE_UKONCENIE_PROJEKTU:{ c:'#FF5722', l:'Nest. ukončenie' },
-  ODSTUPENIE_OD_ZMLUVY:           { c:'#FF7043', l:'Odstúpenie od zmluvy' },
-  CIASTOCNE_VYPLATENY:            { c:'#00BCD4', l:'Čiastočne vyplatený' },
-  CAKAJUCE_NA_PLATBU:             { c:'#FFCA28', l:'Čakajúce na platbu' },
-  NESCHVALENY:                    { c:'#E53935', l:'Neschválený' },
-  NOVY:                           { c:'#26C6DA', l:'Nový' },
-  NEZNAMY:                        { c:'#546E7A', l:'Neznámy' },
+  PROJEKT_UKONCENY:                { c:'#4CAF50', l:'Ukončený' },
+  PROJEKT_V_REALIZACII:            { c:'#2196F3', l:'V realizácii' },
+  ZMLUVA_UZAVRETA:                 { c:'#FF9800', l:'Zmluva uzavretá' },
+  ZAZMLUVNENY:                     { c:'#FF9800', l:'Zazmluvnený' },
+  ZIADOST_SCHVALENA:               { c:'#9C27B0', l:'Žiadosť schválená' },
+  SCHVALENY:                       { c:'#9C27B0', l:'Schválený' },
+  ZIADOST_PODANA:                  { c:'#607D8B', l:'Žiadosť podaná' },
+  PROJEKT_ZRUSENY:                 { c:'#f44336', l:'Zrušený' },
+  ZRUSENY:                         { c:'#f44336', l:'Zrušený' },
+  PREDPRIPRAVENY:                  { c:'#FDD835', l:'Predpripravený' },
+  NESTANDARDNE_UKONCENIE_PROJEKTU: { c:'#FF5722', l:'Nest. ukončenie' },
+  ODSTUPENIE_OD_ZMLUVY:            { c:'#FF7043', l:'Odstúpenie od zmluvy' },
+  CIASTOCNE_VYPLATENY:             { c:'#00BCD4', l:'Čiastočne vyplatený' },
+  VYPLATENY:                       { c:'#4CAF50', l:'Vyplatený' },
+  CAKAJUCE_NA_PLATBU:              { c:'#FFCA28', l:'Čakajúce na platbu' },
+  NESCHVALENY:                     { c:'#E53935', l:'Neschválený' },
+  ZAMIETNUTA:                      { c:'#E53935', l:'Zamietnutá' },
+  ZAMIETNUTA_ZIADOST:              { c:'#E53935', l:'Zamietnutá žiadosť' },
+  NOVY:                            { c:'#26C6DA', l:'Nový' },
+  UZAVRETY:                        { c:'#26C6DA', l:'Uzavretý' },
+  NEZNAMY:                         { c:'#546E7A', l:'Neznámy' },
+}
+
+// ── CP1250 → UTF-8 oprava mojibake (PowerShell double-encoding) ───────────────
+const _CP1250 = [
+  0x20AC,0,0x201A,0,0x201E,0x2026,0x2020,0x2021,0,0x2030,0x0160,0x2039,0x015A,0x0164,0x017D,0x0179,
+  0,0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,0,0x2122,0x0161,0x203A,0x015B,0x0165,0x017E,0x017A,
+  0x00A0,0x02C7,0x02D8,0x0141,0x00A4,0x0104,0x00A6,0x00A7,0x00A8,0x00A9,0x015E,0x00AB,0x00AC,0x00AD,0x00AE,0x017B,
+  0x00B0,0x00B1,0x02DB,0x0142,0x00B4,0x00B5,0x00B6,0x00B7,0x00B8,0x0105,0x015F,0x00BB,0x013D,0x02DD,0x013E,0x017C,
+  0x0154,0x00C1,0x00C2,0x0102,0x00C4,0x0139,0x0106,0x00C7,0x010C,0x00C9,0x0118,0x00CB,0x011A,0x00CD,0x00CE,0x010E,
+  0x0110,0x0143,0x0147,0x00D3,0x00D4,0x0150,0x00D6,0x00D7,0x0158,0x016E,0x00DA,0x0170,0x00DC,0x00DD,0x0162,0x00DF,
+  0x0155,0x00E1,0x00E2,0x0103,0x00E4,0x013A,0x0107,0x00E7,0x010D,0x00E9,0x0119,0x00EB,0x011B,0x00ED,0x00EE,0x010F,
+  0x0111,0x0144,0x0148,0x00F3,0x00F4,0x0151,0x00F6,0x00F7,0x0159,0x016F,0x00FA,0x0171,0x00FC,0x00FD,0x0163,0x02D9
+]
+const _CP1250R = new Map()
+for (let b = 0; b < 128; b++) _CP1250R.set(b, b)
+_CP1250.forEach((cp, i) => { if (cp) _CP1250R.set(cp, 0x80 + i) })
+
+function fixMojibake(s) {
+  if (!s || typeof s !== 'string') return s
+  let hasTell = false
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    if (c > 0xFF && _CP1250R.has(c)) { hasTell = true; break }
+  }
+  if (!hasTell) return s
+  try {
+    const bytes = new Uint8Array(s.length)
+    for (let i = 0; i < s.length; i++)
+      bytes[i] = _CP1250R.get(s.charCodeAt(i)) ?? (s.charCodeAt(i) & 0xFF)
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
+  } catch { return s }
 }
 
 function normStav(s) {
   return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim().replace(/\s+/g,'_')
 }
-
 function stavMeta(stav) {
   return STAV_META[normStav(stav)] || { c:'#546E7A', l: stav || 'Neznámy' }
 }
@@ -90,102 +161,242 @@ function fmt(n) {
   const v = parseFloat(n)
   if (!v && v !== 0) return '—'
   if (v >= 1e6) return (v/1e6).toLocaleString('sk-SK',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' M €'
-  if (v >= 1e3) return (v/1e3).toLocaleString('sk-SK',{maximumFractionDigits:0}) + ' tis. €'
+  if (v >= 1e3) return (v/1e3).toLocaleString('sk-SK',{maximumFractionDigits:1}) + ' tis. €'
   return v.toLocaleString('sk-SK') + ' €'
 }
 
+// ── ASCII-normalize kľúč — odstráni diakritiku, lowercase ────────────────────
+function normKeyA(k) {
+  return (k || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
+}
+
+// ── Robustný getter — skúša presný kľúč aj ASCII-normalizovaný fallback ───────
 function g(p, ...keys) {
   for (const k of keys) {
-    const v = p[k]
-    if (v != null && v !== '' && v !== 'N' && v !== 'null') return v
+    let v = p[k]
+    if (v != null && v !== '' && v !== 'N' && v !== 'null')
+      return typeof v === 'number' ? v : String(v)
+    // Fallback: ASCII-normalizovaný kľúč (rieši NFD/NFC mismatch)
+    v = p[normKeyA(k)]
+    if (v != null && v !== '' && v !== 'N' && v !== 'null')
+      return typeof v === 'number' ? v : String(v)
   }
   return ''
 }
 
-// Určí typ subjektu podľa názvu
-function entityInfo(name) {
+// Právna forma → entity typ (priame mapovanie z JSON poľa)
+const PRAVNA_FORMA_MAP = [
+  [/spoločnosť s ručením obmedzeným|s\.r\.o/i,  { icon:'🏢', label:'s.r.o.', cls:'entity-sro' }],
+  [/akciová spoločnosť|a\.s\./i,                 { icon:'🏦', label:'a.s.', cls:'entity-as' }],
+  [/štátny podnik|štátna organizácia|príspevková organizácia|rozpočtová organizácia/i,
+                                                  { icon:'🏛️', label:'Štátna org.', cls:'entity-stat' }],
+  [/obec|mesto|samosprávny kraj|vyšší územný celok/i,
+                                                  { icon:'🏙️', label:'Samospráva', cls:'entity-samo' }],
+  [/verejnoprávna|verejná výskumná/i,             { icon:'🎓', label:'Verejná inštitúcia', cls:'entity-edu' }],
+  [/fyzická osoba - podnikateľ|živnostník/i,      { icon:'👷', label:'Živnostník / SZČO', cls:'entity-szco' }],
+  [/fyzická osoba/i,                              { icon:'👤', label:'Fyzická osoba', cls:'entity-fyzicka' }],
+  [/občianske združenie|nezisková|nadácia|cirkev|neinvestičný fond/i,
+                                                  { icon:'🤝', label:'Nezisková org.', cls:'entity-ngo' }],
+  [/družstvo/i,                                   { icon:'🤝', label:'Družstvo', cls:'entity-ngo' }],
+  [/komanditná spoločnosť|verejná obchodná/i,     { icon:'🏢', label:'Osobná spol.', cls:'entity-sro' }],
+]
+
+function entityInfo(name, pravnaForma) {
+  // Prednostne podľa právnej formy (priame pole z JSON)
+  if (pravnaForma) {
+    for (const [re, meta] of PRAVNA_FORMA_MAP) {
+      if (re.test(pravnaForma)) return meta
+    }
+    // Ak právna forma existuje ale nerozoznali sme → Právnická osoba
+    return { icon:'🏢', label:'Právnická osoba', cls:'entity-sro' }
+  }
+  // Fallback — regex na mene
   if (!name) return { icon:'👤', label:'Fyzická osoba', cls:'entity-fyzicka' }
-  const n = name.toLowerCase()
-  if (/\bs\.r\.o|spol\. s r\.o/i.test(name))
-    return { icon:'🏢', label:'s.r.o.', cls:'entity-sro' }
-  if (/\ba\.s\.\b|\bakcio/i.test(name))
-    return { icon:'🏦', label:'Akciová spoločnosť', cls:'entity-as' }
-  if (/ministerstvo|úrad vlády|štátna|štátny|agentúra|fond|inšpektorát/i.test(name))
+  if (/\bs\.r\.o|spol\. s r\.o/i.test(name))   return { icon:'🏢', label:'s.r.o.', cls:'entity-sro' }
+  if (/\ba\.s\.\b|\bakcio/i.test(name))         return { icon:'🏦', label:'a.s.', cls:'entity-as' }
+  if (/ministerstvo|úrad vlády|štátna|agentúra|fond|inšpektorát/i.test(name))
     return { icon:'🏛️', label:'Štátna inštitúcia', cls:'entity-stat' }
-  if (/obec |mesto |mestská |obecný |vuc|kraj|samosprávny/i.test(name))
+  if (/obec |mesto |mestská |obecný |kraj|samosprávny/i.test(name))
     return { icon:'🏙️', label:'Samospráva', cls:'entity-samo' }
   if (/škola|gymnázium|univerzita|fakulta|akadémia|výskumný|ústav/i.test(name))
-    return { icon:'🎓', label:'Vzdelávanie / výskum', cls:'entity-edu' }
-  if (/nemocnica|zdravotn|poliklinika|klinika|lekár/i.test(name))
+    return { icon:'🎓', label:'Vzdelávanie', cls:'entity-edu' }
+  if (/nemocnica|zdravotn|poliklinika|klinika/i.test(name))
     return { icon:'🏥', label:'Zdravotníctvo', cls:'entity-health' }
   if (/o\.z\.|n\.o\.|n\.f\.|združenie|nadácia|spolok|cirkev/i.test(name))
     return { icon:'🤝', label:'Nezisková org.', cls:'entity-ngo' }
-  if (/k\.s\.|v\.o\.s\.|družstvo/i.test(name))
-    return { icon:'🏢', label:'Obchodná spoločnosť', cls:'entity-sro' }
   return { icon:'🏢', label:'Právnická osoba', cls:'entity-sro' }
 }
 
-// Popup HTML — pekná tmavá karta
+// ── Popup HTML ─────────────────────────────────────────────────────────────────
 function makePopup(p, meta, color) {
-  const okres  = g(p,'okres','Okres')
-  const kraj   = g(p,'kraj','Kraj')
-  const kat    = g(p,'kód investície / reformy','kod investicie','kod')
-  const nazov  = g(p,'názov projektu','nazov projektu','nazov') || g(p,'názov výzvy','nazov vyzvy','nazov')
-  const vyzva  = g(p,'názov výzvy','nazov vyzvy')
-  const meno   = g(p,'žiadateľ meno a priezvisko / názov','ziadatel meno a priezvisko / nazov','ziadatel')
-  const link   = g(p,'link crz','link_crz')
-  const datum  = g(p,'dátum uzavretia zmluvy','datum_zmluvy','datum zmluvy')
-  const poo    = parseFloat(g(p,'poskytnuté poo','poo_suma','poskytnute_poo')) || 0
-  const celk   = parseFloat(g(p,'celková suma projektu','celkova_suma','celkova suma')) || 0
-  const ent    = entityInfo(meno)
+  const okres   = g(p,'okres','Okres')
+  const kraj    = g(p,'kraj','Kraj')
+  const kat     = g(p,'kód investície / reformy','kod investicie','kod')
+  const km      = kodMeta(kat)
+  const nazov   = g(p,'názov projektu','nazov projektu','nazov','name')
+  const vyzva   = g(p,'názov výzvy','nazov vyzvy')
+  const meno    = g(p,'prijímateľ meno a priezvisko / názov',
+                     'žiadateľ meno a priezvisko / názov',
+                     'ziadatel meno a priezvisko / nazov','ziadatel')
+  const ico        = g(p,'prijímateľ ičo','žiadateľ ičo','ziadatel ico','ico')
+  const icDph      = g(p,'prijímateľ ič dph','žiadateľ ič dph').trim()
+  const dic        = g(p,'prijímateľ dič','žiadateľ dič')
+  const pravnaForma= g(p,'prijímateľ právna forma','žiadateľ právna forma','právna forma')
+  const postavenie = g(p,'prijímateľ postavenie','žiadateľ postavenie')
+  const datumPred  = g(p,'dátum predloženia žiadosti','datum predlozenia ziadosti')
+  const link       = g(p,'link crz','link_crz')
+  const datum      = g(p,'dátum uzavretia zmluvy','datum uzavretia zmluvy','datum_zmluvy','datum zmluvy')
+  const datumCrz   = g(p,'dátum crz','datum crz')
+  const cislo      = g(p,'číslo zmluvy','cislo zmluvy')
+  const ent        = entityInfo(meno, pravnaForma)
+
+  const poo        = parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma')) || 0
+  const pooZuc     = parseFloat(g(p,'zúčtované poo €','zuctovane poo','zuctovane_poo')) || 0
+  const celk       = parseFloat(g(p,'celková suma projektu','celkova suma projektu','celkova_suma')) || 0
+  const pozad      = parseFloat(g(p,'požadovaná suma','požadovaná suma bez dph','pozadovana suma')) || 0
+  const pozadDph   = parseFloat(g(p,'požadovaná suma z toho dph','pozadovana suma z toho dph')) || 0
+
+  const kodVyzvy  = g(p,'kód výzvy','kod vyzvy')
+  const kodZiad   = g(p,'kód žiadosti','kód projektu','kod projektu','kod ziadosti')
+  const posudenie = g(p,'posúdenie výsledok','posudenie vysledok')
+  const evidencna = g(p,'projekt evidenčnej výzvy','projekt evidencnej vyzvy')
+
+  const mainSum = poo || pozad || celk
+
+  const posLabel = {
+    PRIJIMATEL: '✅ Príjemca', ZIADATEL: '📋 Žiadateľ',
+    PLATCA: '💳 Platca', PARTNER: '🤝 Partner',
+  }[postavenie] || postavenie
 
   return `
     <div class="pc">
       <div class="pc-head" style="border-left:3px solid ${color}">
         <span class="pc-badge" style="background:${color}22;color:${color}">${meta.l}</span>
-        <span class="pc-ent ${ent.cls}" title="${ent.label}">${ent.icon} ${ent.label}</span>
+        <span class="pc-ent ${ent.cls}">${ent.icon} ${ent.label}</span>
       </div>
       ${nazov ? `<div class="pc-title">${nazov}</div>` : ''}
       ${vyzva && vyzva !== nazov ? `<div class="pc-vyzva">${vyzva}</div>` : ''}
-      ${meno ? `
+      ${km ? `<div class="pc-area-badge" style="background:${km.c}18;border-color:${km.c}44;color:${km.c}">${km.icon} ${km.l}</div>` : ''}
+
+      ${meno || pravnaForma ? `
         <div class="pc-entity">
-          <span class="pc-entity-lbl">Žiadateľ</span>
-          <span class="pc-entity-val">${meno}</span>
+          <span class="pc-entity-lbl">${posLabel || 'Príjemca / Žiadateľ'}</span>
+          ${meno ? `<span class="pc-entity-val">${meno}</span>` : ''}
+          ${pravnaForma ? `<span class="pc-entity-forma">${pravnaForma}</span>` : ''}
+          ${ico ? `<span class="pc-entity-ico">
+            IČO: <b>${ico}</b>
+            · <a href="https://www.finstat.sk/${ico}" target="_blank" rel="noopener">FinStat</a>
+            · <a href="https://orsr.sk/hladaj_ico.asp?ico=${ico}" target="_blank" rel="noopener">ORSR</a>
+          </span>` : ''}
+          ${icDph ? `<span class="pc-entity-ico">IČ DPH: ${icDph}${dic ? ' · DIČ: '+dic : ''}</span>` : ''}
         </div>` : ''}
+
       <div class="pc-rows">
-        <div class="pc-row"><span>Okres</span><b>${okres}${kraj ? ' · ' + kraj.replace(' kraj','') : ''}</b></div>
-        ${kat ? `<div class="pc-row"><span>Kód investície</span><b>${kat}</b></div>` : ''}
-        ${poo > 0 ? `<div class="pc-row pc-money"><span>POO suma</span><b>${fmt(poo)}</b></div>` : ''}
-        ${celk > 0 ? `<div class="pc-row"><span>Celková suma</span><b>${fmt(celk)}</b></div>` : ''}
-        ${datum ? `<div class="pc-row"><span>Zmluva</span><b>${datum}</b></div>` : ''}
+        <div class="pc-row"><span>Lokalita</span><b>${okres}${kraj ? ' · ' + kraj.replace(' kraj','') : ''}</b></div>
+        ${kat ? `<div class="pc-row"><span>Kód invest.</span><b>${kat}</b></div>` : ''}
+        ${kodVyzvy  ? `<div class="pc-row"><span>Kód výzvy</span><b>${kodVyzvy}</b></div>` : ''}
+        ${kodZiad   ? `<div class="pc-row"><span>Kód žiadosti</span><b>${kodZiad}</b></div>` : ''}
+        ${datumPred ? `<div class="pc-row"><span>Podaná</span><b>${datumPred}</b></div>` : ''}
+        ${posudenie ? `<div class="pc-row pc-posudenie"><span>Posúdenie</span><b class="${posudenie==='SPLNENE_PODMIENKY'?'pc-ok':'pc-nok'}">${posudenie==='SPLNENE_PODMIENKY'?'✓ Splnené podmienky':posudenie}</b></div>` : ''}
+        ${evidencna && evidencna==='N' ? '' : evidencna ? `<div class="pc-row"><span>Evidenčná výzva</span><b>${evidencna}</b></div>` : ''}
+        ${poo  > 0 ? `<div class="pc-row pc-money"><span>Poskytnuté POO</span><b>${fmt(poo)}</b></div>` : ''}
+        ${pooZuc>0 ? `<div class="pc-row"><span>Zúčtované POO</span><b>${fmt(pooZuc)}</b></div>` : ''}
+        ${pozad > 0 ? `<div class="pc-row"><span>Požadovaná suma</span><b>${fmt(pozad)}${pozadDph?` <small>(DPH: ${fmt(pozadDph)})</small>`:''}</b></div>` : ''}
+        ${celk  > 0 ? `<div class="pc-row pc-money"><span>Celková suma</span><b>${fmt(celk)}</b></div>` : ''}
+        ${datum ? `<div class="pc-row"><span>Uzavretie zmluvy</span><b>${datum}</b></div>` : ''}
+        ${datumCrz ? `<div class="pc-row"><span>Dátum CRZ</span><b>${datumCrz}</b></div>` : ''}
+        ${cislo ? `<div class="pc-row"><span>Číslo zmluvy</span><b style="font-size:10px">${cislo}</b></div>` : ''}
       </div>
-      ${link ? `<a class="pc-btn" href="${link}" target="_blank" rel="noopener">Otvoriť zmluvu CRZ →</a>` : ''}
+
+      ${mainSum > 0 ? `
+        <div class="pc-bar-wrap">
+          <div class="pc-bar-track">
+            <div class="pc-bar-fill" style="width:${poo&&celk?Math.min(100,(poo/celk)*100):100}%;background:${color}"></div>
+          </div>
+          <div class="pc-bar-labels">
+            <span>POO: ${fmt(poo||pozad)}</span>
+            ${celk>0?`<span>Celkom: ${fmt(celk)}</span>`:''}
+          </div>
+        </div>` : ''}
+      ${link ? `<a class="pc-btn" href="${link}" target="_blank" rel="noopener">📄 Zmluva CRZ →</a>` : ''}
     </div>`
+}
+
+// ── Heatmap — hustota projektov per okres (žiadne extra balíčky) ──────────────
+function buildHeatLayer(projects) {
+  const counts = {}
+  projects.forEach(p => {
+    const o = g(p,'okres','Okres')
+    if (o && OKRES[o]) counts[o] = (counts[o]||0)+1
+  })
+  const vals = Object.values(counts)
+  if (!vals.length) return L.layerGroup()
+  const max = Math.max(...vals)
+  const circles = Object.entries(counts).map(([name, cnt]) => {
+    const ratio = cnt / max
+    const [lat, lng] = OKRES[name]
+    const radius = 8000 + ratio * 55000
+    // Farebný gradient: málo=modrá, stred=zelená, veľa=červená
+    const hue = Math.round(240 - ratio * 240)
+    const col = `hsl(${hue},85%,58%)`
+    return L.circle([lat, lng], {
+      radius,
+      color: 'transparent',
+      fillColor: col,
+      fillOpacity: 0.18 + ratio * 0.38,
+      interactive: false,
+    })
+  })
+  return L.layerGroup(circles)
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
 export default function App() {
   const mapRef     = useRef(null)
   const leafletRef = useRef(null)
-  const layersRef  = useRef({ kraje: null, markers: null })
+  const layersRef  = useRef({ kraje: null, markers: null, heat: null })
+  const byKrajRef  = useRef({})
 
-  const [data,    setData]    = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error,   setError]   = useState(null)
+  const [data,      setData]      = useState([])
+  const [loading,   setLoading]   = useState(true)
+  const [error,     setError]     = useState(null)
 
-  const [filterKraj, setFilterKraj] = useState('all')
-  const [filterStav, setFilterStav] = useState('all')
-  const [filterKat,  setFilterKat]  = useState('all')
-  const [showKraje,  setShowKraje]  = useState(true)
+  const [filterKraj,   setFilterKraj]   = useState('all')
+  const [filterStav,   setFilterStav]   = useState('all')
+  const [filterKat,    setFilterKat]    = useState('all')
+  const [filterEntity, setFilterEntity] = useState('all')
+  const [showKraje,    setShowKraje]    = useState(true)
+  const [heatMode,     setHeatMode]     = useState(false)
+  const [krajView,     setKrajView]     = useState('count') // 'count' | 'suma'
+  const [tileMode,     setTileMode]     = useState('dark')  // 'dark' | 'light'
+  const tileLayerRef = useRef(null)
 
   // ── Načítaj JSON ─────────────────────────────────────────────────────────────
   useEffect(() => {
     fetch('/planobnovy.json')
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text() })
-      .then(text => {
-        const clean = text.replace(/^﻿/, '')   // strip BOM
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer() })
+      .then(buf => {
+        const text = new TextDecoder('utf-8').decode(buf)
+        const clean = text.replace(/^﻿/, '')
         const raw = JSON.parse(clean)
-        const arr = Array.isArray(raw) ? raw : raw.data || Object.values(raw)[0] || []
+        const rawArr = Array.isArray(raw) ? raw : raw.data || Object.values(raw)[0] || []
+        const arr = rawArr.map(p => {
+          const out = {}
+          for (const [k, v] of Object.entries(p)) {
+            const fixedKey = fixMojibake(k).normalize('NFC')
+            const val = typeof v === 'string' ? fixMojibake(v) : v
+            out[fixedKey] = val
+            // Uložíme aj ASCII-normalizovaný kľúč ako fallback (NFD/NFC mismatch fix)
+            const nk = normKeyA(fixedKey)
+            if (nk !== fixedKey) out[nk] = val
+          }
+          return out
+        })
+        // Debug: vypíšeme kľúče prvého záznamu pre overenie
+        if (arr.length > 0) {
+          console.log('[POO] Prvý záznam kľúče:', Object.keys(arr[0]).slice(0,10))
+          console.log('[POO] pravna forma prvého:', arr[0]['prijímateľ právna forma'] || arr[0][normKeyA('prijímateľ právna forma')] || 'NENÁJDENÁ')
+        }
         setData(arr)
         setLoading(false)
       })
@@ -202,10 +413,13 @@ export default function App() {
       attributionControl: true,
     })
     L.control.zoom({ position:'topright' }).addTo(map)
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© <a href="https://openstreetmap.org">OpenStreetMap</a>',
-      maxZoom: 18,
-    }).addTo(map)
+
+    // Tile layer — dark predvolene, prepnuteľné
+    tileLayerRef.current = L.tileLayer(
+      'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png', {
+        attribution: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
+        maxZoom: 20,
+      }).addTo(map)
     leafletRef.current = map
 
     // ── Kraj hranice z Eurostat GISCO NUTS3 ────────────────────────────────────
@@ -216,11 +430,13 @@ export default function App() {
         const layer = L.geoJSON(sk, {
           style(f) {
             const k = KRAJE.find(k => k.nuts === f.properties.NUTS_ID)
+            const cnt = byKrajRef.current[k?.name] || 0
+            const max = Math.max(...Object.values(byKrajRef.current), 1)
             return {
-              color:       '#1a3a1a',
-              weight:      2,
+              color:       '#ffffff22',
+              weight:      1.5,
               fillColor:   k?.color || '#7DAA6C',
-              fillOpacity: 0.20,
+              fillOpacity: 0.06 + (cnt/max) * 0.38,
             }
           },
           onEachFeature(f, layer) {
@@ -232,29 +448,10 @@ export default function App() {
         layersRef.current.kraje = layer
       })
       .catch(() => {
-        // Fallback — zjednodušené obdĺžniky ak GISCO zlyhá
-        console.warn('GISCO nedostupné, použijú sa zjednodušené hranice')
-        const FALLBACK = [
-          { name:'Bratislavský kraj',   color:'#D9CA8C', coords:[[17.00,48.32],[17.60,48.32],[17.60,48.00],[17.30,47.75],[17.00,47.85],[16.83,47.95],[16.83,48.15]] },
-          { name:'Trnavský kraj',       color:'#CCCF82', coords:[[16.83,48.65],[17.90,48.65],[17.90,48.32],[17.00,48.32],[16.83,48.15]] },
-          { name:'Trenčiansky kraj',    color:'#99BC7A', coords:[[17.60,49.35],[18.75,49.35],[18.75,48.55],[18.20,48.40],[17.90,48.32],[17.60,48.32]] },
-          { name:'Nitriansky kraj',     color:'#BECA78', coords:[[17.90,48.65],[18.75,48.55],[18.75,47.90],[18.20,47.75],[17.60,47.80],[17.30,47.75],[17.60,48.00],[17.90,48.32]] },
-          { name:'Žilinský kraj',       color:'#7DAA6C', coords:[[18.20,49.60],[19.70,49.60],[19.70,49.00],[19.20,48.70],[18.75,48.55],[18.20,48.40],[17.90,48.65]] },
-          { name:'Banskobystrický kraj',color:'#6A965C', coords:[[18.20,48.40],[18.75,48.55],[19.20,48.70],[19.70,49.00],[20.30,48.80],[20.30,48.20],[19.80,47.90],[19.00,47.75],[18.20,47.90],[17.90,48.20]] },
-          { name:'Prešovský kraj',      color:'#7C9C64', coords:[[19.70,49.60],[21.50,49.60],[21.50,48.90],[20.85,48.65],[20.30,48.80],[19.70,49.00]] },
-          { name:'Košický kraj',        color:'#94AA6E', coords:[[20.30,48.80],[20.85,48.65],[21.50,48.90],[21.50,48.30],[21.00,48.00],[20.30,47.90],[19.80,47.90],[20.30,48.20]] },
-        ]
-        const kg = L.layerGroup().addTo(map)
-        FALLBACK.forEach(k => {
-          const ll = k.coords.map(([lng,lat])=>[lat,lng])
-          L.polygon(ll, { color:'#1a3a1a', weight:2, fillColor:k.color, fillOpacity:0.20 })
-            .bindTooltip(`<b>${k.name}</b>`, { sticky:true, className:'kraj-tooltip' })
-            .addTo(kg)
-        })
-        layersRef.current.kraje = kg
+        console.warn('GISCO nedostupné')
       })
 
-    // ── Cluster skupina ────────────────────────────────────────────────────────
+    // ── MarkerClusterGroup ─────────────────────────────────────────────────────
     const mcg = L.markerClusterGroup({
       maxClusterRadius: 45,
       spiderfyOnMaxZoom: true,
@@ -262,9 +459,15 @@ export default function App() {
       zoomToBoundsOnClick: true,
       iconCreateFunction(cluster) {
         const n = cluster.getChildCount()
-        const size = n > 1000 ? 50 : n > 100 ? 42 : 34
+        const size = n > 1000 ? 56 : n > 100 ? 46 : 38
+        const all = cluster.getAllChildMarkers()
+        const sample = all.length > 60 ? all.slice(0, 60) : all
+        const counts = {}
+        sample.forEach(m => { const c = m.options.color||'#546E7A'; counts[c]=(counts[c]||0)+1 })
+        const dom = Object.entries(counts).sort((a,b)=>b[1]-a[1])[0]?.[0] || '#3a6a9c'
+        const label = n > 9999 ? Math.round(n/1000)+'k' : n > 999 ? (n/1000).toFixed(1)+'k' : n
         return L.divIcon({
-          html: `<div class="cl-icon" style="width:${size}px;height:${size}px;line-height:${size}px">${n>999?Math.round(n/1000)+'k':n}</div>`,
+          html: `<div class="cl-icon" style="width:${size}px;height:${size}px;line-height:${size}px;border-color:${dom};box-shadow:0 0 20px ${dom}66,0 0 6px ${dom}33,0 2px 8px rgba(0,0,0,.7);color:${dom}">${label}</div>`,
           className:'', iconSize:[size,size],
         })
       },
@@ -281,52 +484,118 @@ export default function App() {
     showKraje ? map.addLayer(layersRef.current.kraje) : map.removeLayer(layersRef.current.kraje)
   }, [showKraje])
 
+  // ── Prepínač tiles dark / light ──────────────────────────────────────────────
+  useEffect(() => {
+    const map = leafletRef.current
+    if (!map) return
+    if (tileLayerRef.current) map.removeLayer(tileLayerRef.current)
+    const TILES = {
+      dark: {
+        url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth_dark/{z}/{x}/{y}{r}.png',
+        attr: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
+      },
+      light: {
+        url: 'https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png',
+        attr: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
+      },
+    }
+    const t = TILES[tileMode] || TILES.dark
+    tileLayerRef.current = L.tileLayer(t.url, { attribution: t.attr, maxZoom: 20 }).addTo(map)
+    // Posuň tile layer pod všetky ostatné vrstvy
+    tileLayerRef.current.bringToBack()
+  }, [tileMode])
+
   // ── Filtrované dáta ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => data.filter(p => {
-    const kraj = g(p,'kraj')
-    const stav = normStav(g(p,'stav projektu','stav'))
-    const kat  = g(p,'kód investície / reformy','kod investicie','kod')
-    if (filterKraj !== 'all' && !kraj.includes(filterKraj)) return false
-    if (filterStav !== 'all' && stav !== filterStav)        return false
-    if (filterKat  !== 'all' && !kat.includes(filterKat))  return false
+    const kraj       = g(p,'kraj','Kraj')
+    const stav       = normStav(g(p,'stav projektu','stav'))
+    const kat        = g(p,'kód investície / reformy','kod investicie','kod')
+    const meno       = g(p,'prijímateľ meno a priezvisko / názov','žiadateľ meno a priezvisko / názov','ziadatel')
+    const pravnaForma= g(p,'prijímateľ právna forma','žiadateľ právna forma','pravna forma','právna forma')
+    const ent        = entityInfo(meno, pravnaForma)
+    if (filterKraj   !== 'all' && !kraj.includes(filterKraj))   return false
+    if (filterStav   !== 'all' && stav !== filterStav)           return false
+    if (filterKat    !== 'all' && !kat.startsWith(filterKat))    return false
+    if (filterEntity !== 'all' && ent.label !== filterEntity)    return false
     return true
-  }), [data, filterKraj, filterStav, filterKat])
+  }), [data, filterKraj, filterStav, filterKat, filterEntity])
 
-  // ── Aktualizuj markery ───────────────────────────────────────────────────────
+  // ── Markery — bulk addLayers ─────────────────────────────────────────────────
   useEffect(() => {
     const mcg = layersRef.current.markers
     if (!mcg) return
     mcg.clearLayers()
-
-    filtered.forEach(p => {
+    if (heatMode) return  // v heatmap móde neskrývame ale neplníme clustery
+    const markers = []
+    filtered.forEach((p, idx) => {
       const okres = g(p,'okres','Okres')
       const base  = OKRES[okres]
       if (!base) return
-
-      const lat = base[0] + (Math.random()-0.5)*0.05
-      const lng = base[1] + (Math.random()-0.5)*0.05
+      const jLat = (Math.sin(idx * 127.1 + 0.5) * 0.5) * 0.06
+      const jLng = (Math.sin(idx * 311.7 + 1.3) * 0.5) * 0.06
       const stav  = g(p,'stav projektu','stav')
       const meta  = stavMeta(stav)
-      const poo   = parseFloat(g(p,'poskytnuté poo','poo_suma')) || 0
-      const r     = poo > 0 ? Math.min(14, Math.max(5, 4 + Math.log10(poo/1000+1)*3)) : 5
-
-      L.circleMarker([lat,lng], {
-        radius:r, color:meta.c, weight:1.5, fillColor:meta.c, fillOpacity:0.78,
+      const poo   = parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma')) || 0
+      const pozad = parseFloat(g(p,'požadovaná suma','požadovaná suma bez dph')) || 0
+      const suma  = poo || pozad
+      const r     = suma > 0 ? Math.min(14, Math.max(5, 4 + Math.log10(suma/1000+1)*3)) : 5
+      const isActive = normStav(stav) === 'PROJEKT_V_REALIZACII'
+      const m = L.circleMarker([base[0]+jLat, base[1]+jLng], {
+        radius: r,
+        color: meta.c,
+        weight: isActive ? 2.5 : 1.5,
+        fillColor: meta.c,
+        fillOpacity: 0.82,
+        className: isActive ? 'pulse-marker' : '',
       })
-        .bindPopup(makePopup(p, meta, meta.c), { maxWidth:320, className:'dark-popup' })
-        .addTo(mcg)
+      m.options.color = meta.c  // pre cluster dominant farbu
+      m.bindPopup(makePopup(p, meta, meta.c), { maxWidth:340, className:'dark-popup' })
+      markers.push(m)
     })
-  }, [filtered])
+    mcg.addLayers(markers)
+  }, [filtered, heatMode])
+
+  // ── Heatmap vrstva ───────────────────────────────────────────────────────────
+  useEffect(() => {
+    const map = leafletRef.current
+    if (!map) return
+    if (layersRef.current.heat) {
+      map.removeLayer(layersRef.current.heat)
+      layersRef.current.heat = null
+    }
+    if (heatMode) {
+      const layer = buildHeatLayer(filtered)
+      layer.addTo(map)
+      layersRef.current.heat = layer
+    }
+  }, [filtered, heatMode])
 
   // ── Štatistiky ────────────────────────────────────────────────────────────────
-  const totalPOO  = useMemo(()=>filtered.reduce((s,p)=>s+(parseFloat(g(p,'poskytnuté poo','poo_suma'))||0),0),[filtered])
-  const totalCelk = useMemo(()=>filtered.reduce((s,p)=>s+(parseFloat(g(p,'celková suma projektu','celkova_suma','celkova suma'))||0),0),[filtered])
+  const totalPOO  = useMemo(()=>filtered.reduce((s,p)=>
+    s+(parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma'))||0),0),[filtered])
+  const totalCelk = useMemo(()=>filtered.reduce((s,p)=>
+    s+(parseFloat(g(p,'celková suma projektu','celkova suma projektu','celkova_suma'))||0),0),[filtered])
 
   const byKraj = useMemo(()=>{
     const m={}
-    filtered.forEach(p=>{ const k=g(p,'kraj')||'—'; m[k]=(m[k]||0)+1 })
+    filtered.forEach(p=>{ const k=g(p,'kraj','Kraj')||'Neznámy kraj'; m[k]=(m[k]||0)+1 })
     return Object.entries(m).sort((a,b)=>b[1]-a[1])
   },[filtered])
+
+  // Choropleth update
+  useEffect(() => {
+    const countMap = Object.fromEntries(byKraj)
+    byKrajRef.current = countMap
+    const layer = layersRef.current.kraje
+    if (layer?.setStyle) {
+      const max = byKraj[0]?.[1] || 1
+      layer.setStyle(f => {
+        const k = KRAJE.find(k => k.nuts === f.properties?.NUTS_ID)
+        const cnt = countMap[k?.name] || 0
+        return { fillOpacity: 0.06 + (cnt/max) * 0.38 }
+      })
+    }
+  }, [byKraj])
 
   const byStav = useMemo(()=>{
     const m={}
@@ -334,10 +603,57 @@ export default function App() {
     return Object.entries(m).sort((a,b)=>b[1]-a[1])
   },[filtered])
 
-  const krajList = useMemo(()=>[...new Set(data.map(p=>g(p,'kraj')))].filter(Boolean).sort(),[data])
+  const byArea = useMemo(()=>{
+    const m={}
+    filtered.forEach(p=>{
+      const kat = g(p,'kód investície / reformy','kod investicie','kod')
+      if (!kat) return
+      const km = kodMeta(kat)
+      const key = km?.l || kat
+      m[key] = { count:(m[key]?.count||0)+1, meta:km }
+    })
+    return Object.entries(m).sort((a,b)=>b[1].count-a[1].count)
+  },[filtered])
+
+  const byEntity = useMemo(()=>{
+    const m={}
+    filtered.forEach(p=>{
+      const meno = g(p,'prijímateľ meno a priezvisko / názov',
+        'žiadateľ meno a priezvisko / názov',
+        'ziadatel meno a priezvisko / nazov','ziadatel')
+      const pravnaForma = g(p,'prijímateľ právna forma','žiadateľ právna forma','pravna forma','právna forma')
+      const ent = entityInfo(meno, pravnaForma)
+      if (!m[ent.label]) m[ent.label]={ count:0, icon:ent.icon, cls:ent.cls, poo:0 }
+      m[ent.label].count++
+      m[ent.label].poo += parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma'))||0
+    })
+    return Object.entries(m).sort((a,b)=>b[1].count-a[1].count)
+  },[filtered])
+
+  const pooByKraj = useMemo(()=>{
+    const m={}
+    filtered.forEach(p=>{
+      const k=g(p,'kraj','Kraj')||'Neznámy kraj'
+      m[k]=(m[k]||0)+(parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma'))||0)
+    })
+    return m
+  },[filtered])
+
+  const krajList = useMemo(()=>[...new Set(data.map(p=>g(p,'kraj','Kraj')))].filter(Boolean).sort(),[data])
   const stavList = useMemo(()=>[...new Set(data.map(p=>normStav(g(p,'stav projektu','stav'))))].filter(Boolean).sort(),[data])
-  const katList  = useMemo(()=>[...new Set(data.map(p=>g(p,'kód investície / reformy','kod investicie','kod')))].filter(Boolean).sort(),[data])
-  const maxKraj  = byKraj[0]?.[1]||1
+  // Pre filter kódov — zobraz len prefix (K01, K02...)
+  const katList  = useMemo(()=>{
+    const prefixes = new Set()
+    data.forEach(p=>{
+      const k = g(p,'kód investície / reformy','kod investicie','kod')
+      if (!k) return
+      const m = k.match(/^[KR]\d*/i)
+      if (m) prefixes.add(m[0].toUpperCase())
+    })
+    return [...prefixes].sort()
+  },[data])
+
+  const maxKraj = byKraj[0]?.[1]||1
 
   return (
     <div className="app">
@@ -348,7 +664,7 @@ export default function App() {
           <span className="hdr-flag">🇸🇰</span>
           <div>
             <div className="hdr-title">Plán obnovy SR</div>
-            <div className="hdr-sub">Mapa projektov</div>
+            <div className="hdr-sub">Mapa projektov POO</div>
           </div>
         </div>
 
@@ -365,23 +681,49 @@ export default function App() {
 
           <select className="sel sel-wide" value={filterKat} onChange={e=>setFilterKat(e.target.value)}>
             <option value="all">Všetky kódy</option>
-            {katList.map(k=><option key={k} value={k}>{k}</option>)}
+            {katList.map(k=>{
+              const km = kodMeta(k)
+              return <option key={k} value={k}>{k}{km?.l ? ' · '+km.l : ''}</option>
+            })}
           </select>
 
-          <button className={`btn${showKraje?' btn-on':''}`} onClick={()=>setShowKraje(v=>!v)}>
-            {showKraje?'Skryť kraje':'Zobraziť kraje'}
-          </button>
+          <div className="btn-group">
+            <button className={`btn${showKraje?' btn-on':''}`} onClick={()=>setShowKraje(v=>!v)}>
+              🗺 Kraje
+            </button>
+            <button className={`btn${heatMode?' btn-heat':''}`} onClick={()=>setHeatMode(v=>!v)}
+              title="Zobraziť hustotu projektov per okres">
+              🔥 Heatmap
+            </button>
+            <button
+              className={`btn btn-tile${tileMode==='light'?' btn-on':''}`}
+              onClick={()=>setTileMode(v=>v==='dark'?'light':'dark')}
+              title="Prepnúť tmavú/svetlú mapu">
+              {tileMode==='dark' ? '☀️ Svetlá' : '🌙 Tmavá'}
+            </button>
+          </div>
         </div>
 
         <div className="hdr-stats">
-          {loading ? <span className="st-load">Načítavam…</span>
+          {loading ? <span className="st-load">⏳ Načítavam…</span>
            : error  ? <span className="st-err">❌ {error}</span>
            : <>
-              <div className="st"><div className="st-n">{filtered.length.toLocaleString('sk')}</div><div className="st-l">projektov</div></div>
+              <div className="st">
+                <div className="st-n">{filtered.length.toLocaleString('sk')}</div>
+                <div className="st-l">projektov</div>
+              </div>
               <div className="st-sep"/>
-              <div className="st"><div className="st-n">{fmt(totalPOO)}</div><div className="st-l">POO suma</div></div>
-              <div className="st-sep"/>
-              <div className="st"><div className="st-n">{fmt(totalCelk)}</div><div className="st-l">celková suma</div></div>
+              {totalPOO > 0 && <>
+                <div className="st">
+                  <div className="st-n st-green">{fmt(totalPOO)}</div>
+                  <div className="st-l">POO suma</div>
+                </div>
+                <div className="st-sep"/>
+              </>}
+              {totalCelk > 0 && <div className="st">
+                <div className="st-n">{fmt(totalCelk)}</div>
+                <div className="st-l">celková suma</div>
+              </div>}
              </>}
         </div>
       </header>
@@ -392,44 +734,145 @@ export default function App() {
 
         <aside className="sidebar">
 
+          {/* ── Súhrn financií ──────────────────────────────────── */}
+          {!loading && filtered.length > 0 && (
+            <div className="panel panel-finance">
+              <div className="panel-title">Financovanie POO</div>
+              <div className="fin-row">
+                <div className="fin-cell">
+                  <div className="fin-val">{fmt(totalPOO)}</div>
+                  <div className="fin-lbl">Poskytnuté POO</div>
+                </div>
+                {totalCelk > 0 && (
+                  <div className="fin-cell">
+                    <div className="fin-val fin-val-dim">{fmt(totalCelk)}</div>
+                    <div className="fin-lbl">Celková suma</div>
+                  </div>
+                )}
+              </div>
+              {totalPOO > 0 && totalCelk > 0 && (
+                <div className="fin-bar-wrap">
+                  <div className="fin-bar-track">
+                    <div className="fin-bar-poo"  style={{width:`${Math.min(100,(totalPOO/totalCelk)*100)}%`}}/>
+                  </div>
+                  <div className="fin-bar-leg">
+                    <span className="fin-leg-poo">■ POO {((totalPOO/totalCelk)*100).toFixed(0)}%</span>
+                    <span className="fin-leg-other">■ Iné zdroje</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── Projekty podľa kraja ────────────────────────────── */}
           <div className="panel">
-            <div className="panel-title">Projekty podľa kraja</div>
+            <div className="panel-title-row">
+              <span className="panel-title" style={{marginBottom:0}}>Podľa kraja</span>
+              <div className="view-toggle">
+                <button className={`vt-btn${krajView==='count'?' vt-on':''}`}
+                  onClick={()=>setKrajView('count')}>počet</button>
+                <button className={`vt-btn${krajView==='suma'?' vt-on':''}`}
+                  onClick={()=>setKrajView('suma')}>suma</button>
+              </div>
+            </div>
             {byKraj.map(([name,count])=>{
               const k = KRAJE.find(k=>name.includes(k.short)||name.includes(k.name.split(' ')[0]))
               const col = k?.color || '#7DAA6C'
               const active = filterKraj === name
+              const poo = pooByKraj[name] || 0
+              const maxVal = krajView==='suma'
+                ? Math.max(...byKraj.map(([n])=>pooByKraj[n]||0), 1)
+                : maxKraj
+              const val = krajView==='suma' ? poo : count
+              const pct = (val / maxVal) * 100
+              const label = krajView==='suma' ? fmt(poo) : count.toLocaleString('sk')
               return (
                 <div key={name} className={`bar-row${active?' bar-active':''}`}
                   onClick={()=>setFilterKraj(active?'all':name)}
                   style={{opacity:filterKraj!=='all'&&!active?.45:1}}>
                   <div className="bar-lbl">
                     <span>{name.replace(' kraj','')}</span>
-                    <span className="bar-n" style={{color:col}}>{count.toLocaleString('sk')}</span>
+                    <span className="bar-n" style={{color:col}}>{label}</span>
                   </div>
                   <div className="bar-track">
-                    <div className="bar-fill" style={{background:col,width:`${(count/maxKraj)*100}%`}}/>
+                    <div className="bar-fill" style={{background:col,width:`${pct}%`}}/>
                   </div>
                 </div>
               )
             })}
           </div>
 
+          {/* ── Typ subjektu ────────────────────────────────────── */}
+          {byEntity.length > 0 && (
+            <div className="panel">
+              <div className="panel-title">Typ subjektu</div>
+              {byEntity.map(([label,{count,icon,cls,poo}])=>{
+                const maxE = byEntity[0]?.[1]?.count || 1
+                const pct = (count/maxE)*100
+                const active = filterEntity === label
+                return (
+                  <div key={label} className={`ent-row${active?' ent-active':''}`}
+                    onClick={()=>setFilterEntity(active?'all':label)}
+                    style={{opacity:filterEntity!=='all'&&!active?.45:1,cursor:'pointer'}}>
+                    <div className="ent-head">
+                      <span className="ent-icon">{icon}</span>
+                      <span className={`ent-lbl ${cls}`}>{label}</span>
+                      <span className="ent-n">{count.toLocaleString('sk')}</span>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{background:'var(--acc)',opacity:.7,width:`${pct}%`}}/>
+                    </div>
+                    {poo > 0 && (
+                      <div className="ent-poo">{fmt(poo)}</div>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {/* ── Stav projektov ──────────────────────────────────── */}
           <div className="panel">
             <div className="panel-title">Stav projektov</div>
             {byStav.map(([stav,count])=>{
               const meta = stavMeta(stav)
               const active = filterStav === stav
+              const pct = (count/filtered.length)*100
               return (
                 <div key={stav} className={`stav-row${active?' stav-active':''}`}
                   onClick={()=>setFilterStav(active?'all':stav)}
                   style={{opacity:filterStav!=='all'&&!active?.45:1}}>
-                  <div className="stav-dot" style={{background:meta.c,boxShadow:`0 0 5px ${meta.c}99`}}/>
+                  <div className="stav-dot" style={{background:meta.c,boxShadow:`0 0 6px ${meta.c}bb`}}/>
                   <span className="stav-lbl">{meta.l}</span>
+                  <span className="stav-pct" style={{color:meta.c+'cc'}}>{pct.toFixed(0)}%</span>
                   <span className="stav-n">{count.toLocaleString('sk')}</span>
                 </div>
               )
             })}
           </div>
+
+          {/* ── Oblasti plánu obnovy ────────────────────────────── */}
+          {byArea.length > 0 && (
+            <div className="panel">
+              <div className="panel-title">Oblasti plánu obnovy</div>
+              {byArea.map(([label,{count,meta}])=>{
+                const col = meta?.c || '#546E7A'
+                const maxA = byArea[0]?.[1]?.count || 1
+                return (
+                  <div key={label} className="area-row">
+                    <div className="area-head">
+                      <span className="area-icon">{meta?.icon||'📋'}</span>
+                      <span className="area-lbl">{label}</span>
+                      <span className="area-n" style={{color:col}}>{count.toLocaleString('sk')}</span>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{background:col,width:`${(count/maxA)*100}%`}}/>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          )}
 
         </aside>
       </div>
