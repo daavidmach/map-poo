@@ -156,6 +156,7 @@ body {
   letter-spacing: -.01em;
 }
 .st-n.st-green { color: var(--gre); }
+.st-n.st-blue  { color: var(--acc2); }
 .st-l { font-size: 10px; color: var(--txt3); text-transform: uppercase; letter-spacing: .07em; }
 .st-sep { width: 1px; height: 30px; background: var(--bdr); }
 .st-load { color: var(--txt3); font-size: 12px; }
@@ -272,7 +273,9 @@ body {
   letter-spacing: -.01em;
   line-height: 1.2;
 }
-.fin-val-dim { color: var(--txt1); font-size: 13px; }
+.fin-val-dim   { color: var(--txt1); font-size: 13px; }
+.fin-val-zazml { color: var(--gre); }
+.fin-val-zuc   { color: var(--acc2); }
 .fin-lbl { font-size: 10px; color: var(--txt3); text-transform: uppercase; letter-spacing: .07em; margin-top: 1px; }
 
 .fin-bar-wrap { margin-top: 2px; }
@@ -295,8 +298,17 @@ body {
   justify-content: space-between;
   font-size: 10px;
 }
-.fin-leg-poo   { color: var(--gre); font-weight: 600; }
+.fin-leg-poo   { color: var(--gre);  font-weight: 600; }
+.fin-leg-zuc   { color: var(--acc2); font-weight: 600; }
 .fin-leg-other { color: var(--txt3); }
+.fin-bar-zuc {
+  height: 100%;
+  background: linear-gradient(90deg, var(--acc2), #42A5F5);
+  border-radius: 3px;
+  transition: width .4s cubic-bezier(.4,0,.2,1);
+  margin-top: -6px; /* overlay na poo bar */
+  opacity: .7;
+}
 
 /* ── Panel title row (with toggle) ────────────────────────────────── */
 .panel-title-row {
@@ -621,3 +633,30 @@ body.tile-light .kraj-tooltip {
 .leaflet-control-zoom a:hover { background: var(--bg3) !important; color: var(--txt0) !important; }
 .leaflet-control-zoom-in  { border-bottom: none !important; }
 .leaflet-bar { box-shadow: var(--shd) !important; }
+
+/* ── Rola v projekte toggle (Prijímateľ / Partner) ─────────────── */
+.pos-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.pos-btn {
+  flex: 1 1 auto;
+  min-width: 80px;
+  padding: 5px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  border: 1px solid var(--bdr2);
+  border-radius: var(--rad);
+  background: var(--bg2);
+  color: var(--txt2);
+  cursor: pointer;
+  text-align: center;
+  transition: background .12s, border-color .12s, color .12s;
+}
+.pos-btn:hover { background: var(--bg3); color: var(--txt1); }
+.pos-btn.pos-on {
+  background: var(--acc);
+  border-color: var(--acc2);
+  color: #fff;
+}

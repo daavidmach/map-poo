@@ -160,6 +160,7 @@ function stavMeta(stav) {
 function fmt(n) {
   const v = parseFloat(n)
   if (!v && v !== 0) return '—'
+  if (v >= 1e9) return (v/1e9).toLocaleString('sk-SK',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' mld. €'
   if (v >= 1e6) return (v/1e6).toLocaleString('sk-SK',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' M €'
   if (v >= 1e3) return (v/1e3).toLocaleString('sk-SK',{maximumFractionDigits:1}) + ' tis. €'
   return v.toLocaleString('sk-SK') + ' €'
@@ -361,10 +362,29 @@ export default function App() {
   const [loading,   setLoading]   = useState(true)
   const [error,     setError]     = useState(null)
 
+  // ── Easter egg ───────────────────────────────────────────────────────────────
+  const [eggClicks,  setEggClicks]  = useState(0)
+  const [eggVisible, setEggVisible] = useState(false)
+  const eggTimerRef = useRef(null)
+  const EGG_ICONS = ['🏥','👨‍⚕️','💊','🚑','🩺','❤️','🫀','🧬','💉','🩻']
+  const handleEggClick = () => {
+    setEggClicks(c => {
+      const next = c + 1
+      if (next >= 5) {
+        setEggVisible(true)
+        clearTimeout(eggTimerRef.current)
+        eggTimerRef.current = setTimeout(() => { setEggVisible(false); setEggClicks(0) }, 3500)
+        return 0
+      }
+      return next
+    })
+  }
+
   const [filterKraj,   setFilterKraj]   = useState('all')
   const [filterStav,   setFilterStav]   = useState('all')
   const [filterKat,    setFilterKat]    = useState('all')
-  const [filterEntity, setFilterEntity] = useState('all')
+  const [filterEntity,    setFilterEntity]    = useState('all')
+  const [filterPostavenie,setFilterPostavenie] = useState('all') // 'all' | 'PRIJIMATEL' | 'PARTNER' | 'ZIADATEL'
   const [showKraje,    setShowKraje]    = useState(true)
   const [heatMode,     setHeatMode]     = useState(false)
   const [krajView,     setKrajView]     = useState('count') // 'count' | 'suma'
@@ -517,8 +537,12 @@ export default function App() {
     if (filterStav   !== 'all' && stav !== filterStav)           return false
     if (filterKat    !== 'all' && !kat.startsWith(filterKat))    return false
     if (filterEntity !== 'all' && ent.label !== filterEntity)    return false
+    if (filterPostavenie !== 'all') {
+      const pos = normStav(g(p,'prijímateľ postavenie','žiadateľ postavenie','prijimatel postavenie','ziadatel postavenie'))
+      if (pos !== filterPostavenie) return false
+    }
     return true
-  }), [data, filterKraj, filterStav, filterKat, filterEntity])
+  }), [data, filterKraj, filterStav, filterKat, filterEntity, filterPostavenie])
 
   // ── Markery — bulk addLayers ─────────────────────────────────────────────────
   useEffect(() => {
@@ -571,8 +595,17 @@ export default function App() {
   }, [filtered, heatMode])
 
   // ── Štatistiky ────────────────────────────────────────────────────────────────
+  // Hlavná POO suma: poskytnuté → zazmluvnená → požadovaná (rovnaká fallback logika ako pôvodne)
   const totalPOO  = useMemo(()=>filtered.reduce((s,p)=>
     s+(parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma'))||0),0),[filtered])
+  // Zazmluvnená (len projekty so zmluvou)
+  const totalZazmluvnena = useMemo(()=>filtered.reduce((s,p)=>{
+    const v = parseFloat(g(p,'zazmluvnená suma zdroj poo','zazmluvnena suma zdroj poo'))
+    return s + (v > 0 ? v : 0)
+  },0),[filtered])
+  // Zúčtované POO
+  const totalZuctovane = useMemo(()=>filtered.reduce((s,p)=>
+    s+(parseFloat(g(p,'zúčtované poo €','zuctovane poo €','zuctovane poo'))||0),0),[filtered])
   const totalCelk = useMemo(()=>filtered.reduce((s,p)=>
     s+(parseFloat(g(p,'celková suma projektu','celkova suma projektu','celkova_suma'))||0),0),[filtered])
 
@@ -658,10 +691,50 @@ export default function App() {
   return (
     <div className="app">
 
+      {/* ── Easter egg overlay ──────────────────────────────────────── */}
+      {eggVisible && (
+        <div style={{position:'fixed',inset:0,pointerEvents:'none',zIndex:9999,overflow:'hidden'}}>
+          <style>{`
+            @keyframes eggFloat {
+              0%   { transform: translateY(110vh) rotate(0deg) scale(0.5); opacity:0; }
+              10%  { opacity:1; }
+              50%  { transform: translateY(40vh) rotate(360deg) scale(1.3); }
+              90%  { opacity:1; }
+              100% { transform: translateY(-20vh) rotate(720deg) scale(0.8); opacity:0; }
+            }
+            @keyframes eggSpin {
+              0%   { transform: translateX(-10vw) translateY(50vh) rotate(0deg) scale(1); opacity:0; }
+              10%  { opacity:1; }
+              50%  { transform: translateX(110vw) translateY(20vh) rotate(540deg) scale(1.5); }
+              90%  { opacity:1; }
+              100% { transform: translateX(120vw) translateY(70vh) rotate(900deg) scale(0.5); opacity:0; }
+            }
+          `}</style>
+          {EGG_ICONS.map((icon, i) => (
+            <div key={i} style={{
+              position:'absolute',
+              fontSize: `${2 + (i%3)}rem`,
+              left: `${(i*17+7) % 90}%`,
+              animation: i%2===0
+                ? `eggFloat ${2+i*0.2}s ease-in-out forwards`
+                : `eggSpin ${2.5+i*0.15}s ease-in-out forwards`,
+              animationDelay: `${i*0.15}s`,
+            }}>{icon}</div>
+          ))}
+          <div style={{
+            position:'absolute', top:'50%', left:'50%',
+            transform:'translate(-50%,-50%)',
+            fontSize:'1.1rem', fontWeight:700, color:'#fff',
+            textShadow:'0 0 20px #ef5350,0 2px 8px rgba(0,0,0,.8)',
+            textAlign:'center', animation:'eggFloat 3s ease-in-out forwards',
+          }}>🏥 Plán obnovy — zdravá SR! 🇸🇰</div>
+        </div>
+      )}
+
       {/* ── Header ──────────────────────────────────────────────────── */}
       <header className="hdr">
-        <div className="hdr-brand">
-          <span className="hdr-flag">🇸🇰</span>
+        <div className="hdr-brand" onClick={handleEggClick} style={{cursor:'pointer',userSelect:'none'}}>
+          <span className="hdr-flag" title={eggClicks>0?`${5-eggClicks} kliknutí zostáva…`:''}>🇸🇰</span>
           <div>
             <div className="hdr-title">Plán obnovy SR</div>
             <div className="hdr-sub">Mapa projektov POO</div>
@@ -714,16 +787,19 @@ export default function App() {
               </div>
               <div className="st-sep"/>
               {totalPOO > 0 && <>
+                <div className="st-sep"/>
                 <div className="st">
                   <div className="st-n st-green">{fmt(totalPOO)}</div>
                   <div className="st-l">POO suma</div>
                 </div>
-                <div className="st-sep"/>
               </>}
-              {totalCelk > 0 && <div className="st">
-                <div className="st-n">{fmt(totalCelk)}</div>
-                <div className="st-l">celková suma</div>
-              </div>}
+              {totalZuctovane > 0 && <>
+                <div className="st-sep"/>
+                <div className="st">
+                  <div className="st-n st-blue">{fmt(totalZuctovane)}</div>
+                  <div className="st-l">zúčtované POO</div>
+                </div>
+              </>}
              </>}
         </div>
       </header>
@@ -739,10 +815,18 @@ export default function App() {
             <div className="panel panel-finance">
               <div className="panel-title">Financovanie POO</div>
               <div className="fin-row">
-                <div className="fin-cell">
-                  <div className="fin-val">{fmt(totalPOO)}</div>
-                  <div className="fin-lbl">Poskytnuté POO</div>
-                </div>
+                {totalZazmluvnena > 0 && (
+                  <div className="fin-cell">
+                    <div className="fin-val fin-val-zazml">{fmt(totalZazmluvnena)}</div>
+                    <div className="fin-lbl">Zazmluvnené POO</div>
+                  </div>
+                )}
+                {totalZuctovane > 0 && (
+                  <div className="fin-cell">
+                    <div className="fin-val fin-val-zuc">{fmt(totalZuctovane)}</div>
+                    <div className="fin-lbl">Zúčtované POO</div>
+                  </div>
+                )}
                 {totalCelk > 0 && (
                   <div className="fin-cell">
                     <div className="fin-val fin-val-dim">{fmt(totalCelk)}</div>
@@ -750,17 +834,42 @@ export default function App() {
                   </div>
                 )}
               </div>
-              {totalPOO > 0 && totalCelk > 0 && (
+              {totalZazmluvnena > 0 && totalCelk > 0 && (
                 <div className="fin-bar-wrap">
                   <div className="fin-bar-track">
-                    <div className="fin-bar-poo"  style={{width:`${Math.min(100,(totalPOO/totalCelk)*100)}%`}}/>
+                    <div className="fin-bar-poo" style={{width:`${Math.min(100,(totalZazmluvnena/totalCelk)*100)}%`}}/>
+                    {totalZuctovane > 0 && (
+                      <div className="fin-bar-zuc" style={{width:`${Math.min(100,(totalZuctovane/totalCelk)*100)}%`}}/>
+                    )}
                   </div>
                   <div className="fin-bar-leg">
-                    <span className="fin-leg-poo">■ POO {((totalPOO/totalCelk)*100).toFixed(0)}%</span>
+                    <span className="fin-leg-poo">■ Zazml. {((totalZazmluvnena/totalCelk)*100).toFixed(0)}%</span>
+                    {totalZuctovane > 0 && <span className="fin-leg-zuc">■ Zúč. {((totalZuctovane/totalCelk)*100).toFixed(0)}%</span>}
                     <span className="fin-leg-other">■ Iné zdroje</span>
                   </div>
                 </div>
               )}
+            </div>
+          )}
+
+          {/* ── Rola subjektu (Prijímateľ / Partner) ─────────── */}
+          {!loading && (
+            <div className="panel panel-postavenie">
+              <div className="panel-title" style={{marginBottom:'6px'}}>Rola v projekte</div>
+              <div className="pos-toggle">
+                {[
+                  { v:'all',        l:'Všetci' },
+                  { v:'PRIJIMATEL', l:'✅ Príjemcovia' },
+                  { v:'PARTNER',    l:'🤝 Partneri' },
+                  { v:'ZIADATEL',   l:'📋 Žiadatelia' },
+                ].map(({v,l})=>(
+                  <button key={v}
+                    className={`pos-btn${filterPostavenie===v?' pos-on':''}`}
+                    onClick={()=>setFilterPostavenie(v)}>
+                    {l}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
 
