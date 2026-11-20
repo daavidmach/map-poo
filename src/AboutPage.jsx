@@ -39,17 +39,23 @@ function useCountUp(target, ms = 1200) {
   return v
 }
 
-function BigStat({ value, format, label, sub, color, bar }) {
+function BigStat({ value, format, label, sub, tone, bar, onClick, split }) {
   const v = useCountUp(value)
+  const Tag = onClick ? 'button' : 'div'
   return (
-    <div className="ab-stat">
-      <div className="ab-stat-n" style={{ color }}>{format(v)}</div>
+    <Tag className={`ab-stat ab-tone-${tone}${onClick ? ' ab-stat-link' : ''}`} onClick={onClick}>
+      <div className="ab-stat-n">{format(v)}</div>
       <div className="ab-stat-l">{label}</div>
       {bar != null && (
-        <div className="ab-stat-bar"><div style={{ width: `${Math.min(100, bar)}%`, background: color }} /></div>
+        <div className="ab-stat-bar"><div style={{ width: `${Math.min(100, bar)}%` }} /></div>
+      )}
+      {split && (
+        <div className="ab-stat-split">
+          {split.map(s => <div key={s.k} className={`ab-split-${s.k}`} style={{ flex: s.n }} title={s.l} />)}
+        </div>
       )}
       {sub && <div className="ab-stat-sub">{sub}</div>}
-    </div>
+    </Tag>
   )
 }
 
@@ -106,20 +112,25 @@ export default function AboutPage({ onClose, theme, onToggleTheme, onFeedback })
         {t && <>
           {/* ── Veľké čísla ──────────────────────────────────── */}
           <section className="ab-stats">
-            <BigStat value={t.zazmluvnene} format={eur} color="#3ecf8e"
-              label="zazmluvnených na projekty"
+            <BigStat value={t.zazmluvnene} format={eur} tone="green"
+              label="pridelených na konkrétne projekty"
               bar={(t.zazmluvnene / ALOKACIA) * 100}
-              sub={`${((t.zazmluvnene / ALOKACIA) * 100).toFixed(0)} % z alokácie 6,4 mld €`} />
-            <BigStat value={t.zuctovane} format={eur} color="#4fa8e8"
-              label="už zúčtovaných"
+              sub={`${((t.zazmluvnene / ALOKACIA) * 100).toFixed(0)} % z celkovej sumy plánu obnovy (6,4 mld €)`} />
+            <BigStat value={t.zuctovane} format={eur} tone="blue"
+              label="už vyplatených a zúčtovaných"
               bar={(t.zuctovane / t.zazmluvnene) * 100}
-              sub={`${((t.zuctovane / t.zazmluvnene) * 100).toFixed(0)} % zo zazmluvnených`} />
-            <BigStat value={t.projekty} format={num} color="#f0a030"
-              label="projektov v realizácii a dokončených"
-              sub={`z ${num(t.ziadosti)} podaných žiadostí`} />
-            <BigStat value={t.obce} format={num} color="#CE93D8"
-              label="obcí a miest s prijímateľmi"
-              sub={`${num(t.prijimatelia)} rôznych prijímateľov`} />
+              sub={`${((t.zuctovane / t.zazmluvnene) * 100).toFixed(0)} % z pridelených — zvyšok sa ešte čerpá`} />
+            <BigStat value={t.projekty} format={num} tone="orange"
+              label="projektov dostalo peniaze"
+              split={[
+                { k:'run',  n: s.groups?.realizacia?.n || 0, l:'práve beží' },
+                { k:'done', n: s.groups?.ukoncene?.n || 0,   l:'už dokončené' },
+              ]}
+              sub={`${num(s.groups?.realizacia?.n || 0)} práve beží · ${num(s.groups?.ukoncene?.n || 0)} už dokončených`} />
+            <BigStat value={t.obce} format={num} tone="purple"
+              label="obcí a miest má aspoň jeden projekt"
+              sub="Pozrite si tú svoju na mape →"
+              onClick={onClose} />
           </section>
 
           {/* ── Hmatateľné výsledky ──────────────────────────── */}
