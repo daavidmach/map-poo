@@ -5,6 +5,7 @@ import 'leaflet.markercluster'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import './App.css'
+import { DETAIL_CHUNK, g, normStav, entityInfo } from './poo-data.mjs'
 
 // ── 5 pilierov POO SR ─────────────────────────────────────────────────────────
 const PILLAR = {
@@ -37,6 +38,7 @@ const KN_MAP = [
   { l:'Boj proti korupcii',           icon:'🛡️', c:'#FFC107', p:'sprava'      }, // K16
   { l:'Digitálne Slovensko',          icon:'🖥️', c:'#00BCD4', p:'sprava'      }, // K17
   { l:'Zdravé verejné financie',      icon:'💰', c:'#795548', p:'sprava'      }, // K18
+  { l:'Obnova rodinných domov',       icon:'🏡', c:'#81C784', p:'zelena'      }, // K19 — MIMORIADNA VÝZVA (FO)
 ]
 function kodMeta(kat) {
   if (!kat) return null
@@ -240,40 +242,6 @@ const STAV_META = {
   NEZNAMY:                         { c:'#546E7A', l:'Neznámy' },
 }
 
-// ── CP1250 → UTF-8 oprava mojibake (PowerShell double-encoding) ───────────────
-const _CP1250 = [
-  0x20AC,0,0x201A,0,0x201E,0x2026,0x2020,0x2021,0,0x2030,0x0160,0x2039,0x015A,0x0164,0x017D,0x0179,
-  0,0x2018,0x2019,0x201C,0x201D,0x2022,0x2013,0x2014,0,0x2122,0x0161,0x203A,0x015B,0x0165,0x017E,0x017A,
-  0x00A0,0x02C7,0x02D8,0x0141,0x00A4,0x0104,0x00A6,0x00A7,0x00A8,0x00A9,0x015E,0x00AB,0x00AC,0x00AD,0x00AE,0x017B,
-  0x00B0,0x00B1,0x02DB,0x0142,0x00B4,0x00B5,0x00B6,0x00B7,0x00B8,0x0105,0x015F,0x00BB,0x013D,0x02DD,0x013E,0x017C,
-  0x0154,0x00C1,0x00C2,0x0102,0x00C4,0x0139,0x0106,0x00C7,0x010C,0x00C9,0x0118,0x00CB,0x011A,0x00CD,0x00CE,0x010E,
-  0x0110,0x0143,0x0147,0x00D3,0x00D4,0x0150,0x00D6,0x00D7,0x0158,0x016E,0x00DA,0x0170,0x00DC,0x00DD,0x0162,0x00DF,
-  0x0155,0x00E1,0x00E2,0x0103,0x00E4,0x013A,0x0107,0x00E7,0x010D,0x00E9,0x0119,0x00EB,0x011B,0x00ED,0x00EE,0x010F,
-  0x0111,0x0144,0x0148,0x00F3,0x00F4,0x0151,0x00F6,0x00F7,0x0159,0x016F,0x00FA,0x0171,0x00FC,0x00FD,0x0163,0x02D9
-]
-const _CP1250R = new Map()
-for (let b = 0; b < 128; b++) _CP1250R.set(b, b)
-_CP1250.forEach((cp, i) => { if (cp) _CP1250R.set(cp, 0x80 + i) })
-
-function fixMojibake(s) {
-  if (!s || typeof s !== 'string') return s
-  let hasTell = false
-  for (let i = 0; i < s.length; i++) {
-    const c = s.charCodeAt(i)
-    if (c > 0xFF && _CP1250R.has(c)) { hasTell = true; break }
-  }
-  if (!hasTell) return s
-  try {
-    const bytes = new Uint8Array(s.length)
-    for (let i = 0; i < s.length; i++)
-      bytes[i] = _CP1250R.get(s.charCodeAt(i)) ?? (s.charCodeAt(i) & 0xFF)
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes)
-  } catch { return s }
-}
-
-function normStav(s) {
-  return (s||'').normalize('NFD').replace(/[̀-ͯ]/g,'').toUpperCase().trim().replace(/\s+/g,'_')
-}
 function stavMeta(stav) {
   return STAV_META[normStav(stav)] || { c:'#546E7A', l: stav || 'Neznámy' }
 }
@@ -285,68 +253,6 @@ function fmt(n) {
   if (v >= 1e6) return (v/1e6).toLocaleString('sk-SK',{minimumFractionDigits:2,maximumFractionDigits:2}) + ' M €'
   if (v >= 1e3) return (v/1e3).toLocaleString('sk-SK',{maximumFractionDigits:1}) + ' tis. €'
   return v.toLocaleString('sk-SK') + ' €'
-}
-
-// ── ASCII-normalize kľúč — odstráni diakritiku, lowercase ────────────────────
-function normKeyA(k) {
-  return (k || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim()
-}
-
-// ── Robustný getter — skúša presný kľúč aj ASCII-normalizovaný fallback ───────
-function g(p, ...keys) {
-  for (const k of keys) {
-    let v = p[k]
-    if (v != null && v !== '' && v !== 'N' && v !== 'null')
-      return typeof v === 'number' ? v : String(v)
-    // Fallback: ASCII-normalizovaný kľúč (rieši NFD/NFC mismatch)
-    v = p[normKeyA(k)]
-    if (v != null && v !== '' && v !== 'N' && v !== 'null')
-      return typeof v === 'number' ? v : String(v)
-  }
-  return ''
-}
-
-// Právna forma → entity typ (priame mapovanie z JSON poľa)
-const PRAVNA_FORMA_MAP = [
-  [/spoločnosť s ručením obmedzeným|s\.r\.o/i,  { icon:'🏢', label:'s.r.o.', cls:'entity-sro' }],
-  [/akciová spoločnosť|a\.s\./i,                 { icon:'🏦', label:'a.s.', cls:'entity-as' }],
-  [/štátny podnik|štátna organizácia|príspevková organizácia|rozpočtová organizácia/i,
-                                                  { icon:'🏛️', label:'Štátna org.', cls:'entity-stat' }],
-  [/obec|mesto|samosprávny kraj|vyšší územný celok/i,
-                                                  { icon:'🏙️', label:'Samospráva', cls:'entity-samo' }],
-  [/verejnoprávna|verejná výskumná/i,             { icon:'🎓', label:'Verejná inštitúcia', cls:'entity-edu' }],
-  [/fyzická osoba - podnikateľ|živnostník/i,      { icon:'👷', label:'Živnostník / SZČO', cls:'entity-szco' }],
-  [/fyzická osoba|^fo$/i,                         { icon:'👤', label:'Fyzická osoba', cls:'entity-fyzicka' }],
-  [/občianske združenie|nezisková|nadácia|cirkev|neinvestičný fond/i,
-                                                  { icon:'🤝', label:'Nezisková org.', cls:'entity-ngo' }],
-  [/družstvo/i,                                   { icon:'🤝', label:'Družstvo', cls:'entity-ngo' }],
-  [/komanditná spoločnosť|verejná obchodná/i,     { icon:'🏢', label:'Osobná spol.', cls:'entity-sro' }],
-]
-
-function entityInfo(name, pravnaForma) {
-  // Prednostne podľa právnej formy (priame pole z JSON)
-  if (pravnaForma) {
-    for (const [re, meta] of PRAVNA_FORMA_MAP) {
-      if (re.test(pravnaForma)) return meta
-    }
-    // Ak právna forma existuje ale nerozoznali sme → Právnická osoba
-    return { icon:'🏢', label:'Právnická osoba', cls:'entity-sro' }
-  }
-  // Fallback — regex na mene
-  if (!name) return { icon:'👤', label:'Fyzická osoba', cls:'entity-fyzicka' }
-  if (/\bs\.r\.o|spol\. s r\.o/i.test(name))   return { icon:'🏢', label:'s.r.o.', cls:'entity-sro' }
-  if (/\ba\.s\.\b|\bakcio/i.test(name))         return { icon:'🏦', label:'a.s.', cls:'entity-as' }
-  if (/ministerstvo|úrad vlády|štátna|agentúra|fond|inšpektorát/i.test(name))
-    return { icon:'🏛️', label:'Štátna inštitúcia', cls:'entity-stat' }
-  if (/obec |mesto |mestská |obecný |kraj|samosprávny/i.test(name))
-    return { icon:'🏙️', label:'Samospráva', cls:'entity-samo' }
-  if (/škola|gymnázium|univerzita|fakulta|akadémia|výskumný|ústav/i.test(name))
-    return { icon:'🎓', label:'Vzdelávanie', cls:'entity-edu' }
-  if (/nemocnica|zdravotn|poliklinika|klinika/i.test(name))
-    return { icon:'🏥', label:'Zdravotníctvo', cls:'entity-health' }
-  if (/o\.z\.|n\.o\.|n\.f\.|združenie|nadácia|spolok|cirkev/i.test(name))
-    return { icon:'🤝', label:'Nezisková org.', cls:'entity-ngo' }
-  return { icon:'🏢', label:'Právnická osoba', cls:'entity-sro' }
 }
 
 // ── Popup HTML ─────────────────────────────────────────────────────────────────
@@ -449,7 +355,7 @@ function makePopup(p, meta, color) {
 function buildHeatLayer(projects) {
   const counts = {}
   projects.forEach(p => {
-    const o = g(p,'okres','Okres')
+    const o = p.okres
     if (o && OKRES[o]) counts[o] = (counts[o]||0)+1
   })
   const vals = Object.values(counts)
@@ -471,6 +377,25 @@ function buildHeatLayer(projects) {
     })
   })
   return L.layerGroup(circles)
+}
+
+// ── Detaily pre popup — načítajú sa až po kliknutí, po blokoch DETAIL_CHUNK ──
+const detailCache = new Map()
+async function getDetail(i) {
+  const c = Math.floor(i / DETAIL_CHUNK)
+  if (!detailCache.has(c)) {
+    detailCache.set(c, fetch(`/data/d/${c}.json`).then(r => {
+      if (!r.ok) throw new Error('HTTP ' + r.status)
+      return r.json()
+    }))
+  }
+  let chunk
+  try { chunk = await detailCache.get(c) }
+  catch (e) { detailCache.delete(c); throw e }
+  const row = chunk.r[i % DETAIL_CHUNK] || []
+  const o = {}
+  chunk.k.forEach((key, j) => { if (row[j] != null) o[key] = row[j] })
+  return o
 }
 
 // ── App ───────────────────────────────────────────────────────────────────────
@@ -515,30 +440,23 @@ export default function App() {
 
   // ── Načítaj JSON ─────────────────────────────────────────────────────────────
   useEffect(() => {
-    fetch('/planobnovy.json')
-      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.arrayBuffer() })
-      .then(buf => {
-        const text = new TextDecoder('utf-8').decode(buf)
-        const clean = text.replace(/^﻿/, '')
-        const raw = JSON.parse(clean)
-        const rawArr = Array.isArray(raw) ? raw : raw.data || Object.values(raw)[0] || []
-        const arr = rawArr.map(p => {
-          const out = {}
-          for (const [k, v] of Object.entries(p)) {
-            const fixedKey = fixMojibake(k).normalize('NFC')
-            const val = typeof v === 'string' ? fixMojibake(v) : v
-            out[fixedKey] = val
-            // Uložíme aj ASCII-normalizovaný kľúč ako fallback (NFD/NFC mismatch fix)
-            const nk = normKeyA(fixedKey)
-            if (nk !== fixedKey) out[nk] = val
-          }
-          return out
-        })
-        // Debug: vypíšeme kľúče prvého záznamu pre overenie
-        if (arr.length > 0) {
-          console.log('[POO] Prvý záznam kľúče:', Object.keys(arr[0]).slice(0,10))
-          console.log('[POO] pravna forma prvého:', arr[0]['prijímateľ právna forma'] || arr[0][normKeyA('prijímateľ právna forma')] || 'NENÁJDENÁ')
-        }
+    // Predpripravené dáta zo scripts/prepare-data.mjs
+    fetch('/data/points.json')
+      .then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() })
+      .then(({ dict, rows }) => {
+        const arr = rows.map((r, i) => ({
+          i,
+          kraj:  dict.kraj[r[0]]  || '',
+          okres: dict.okres[r[1]] || '',
+          obec:  dict.obec[r[2]]  || '',
+          stav:  dict.stav[r[3]]  || 'NEZNAMY',
+          kod:   dict.kod[r[4]]   || '',
+          ent:   dict.ent[r[5]]   || { icon:'🏢', label:'Právnická osoba', cls:'entity-sro' },
+          pos:   dict.pos[r[6]]   || '',
+          poo:   r[7] || 0,
+          zuc:   r[8] || 0,
+          pozad: r[9] || 0,
+        }))
         setData(arr)
         setLoading(false)
       })
@@ -596,6 +514,8 @@ export default function App() {
     // ── MarkerClusterGroup ─────────────────────────────────────────────────────
     const mcg = L.markerClusterGroup({
       maxClusterRadius: 45,
+      chunkedLoading: true,
+      chunkInterval: 100,
       spiderfyOnMaxZoom: true,
       showCoverageOnHover: false,
       zoomToBoundsOnClick: true,
@@ -649,46 +569,32 @@ export default function App() {
 
   // ── Filtrované dáta ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => data.filter(p => {
-    const kraj       = g(p,'kraj','Kraj')
-    const stav       = normStav(g(p,'stav projektu','stav'))
-    const kat        = g(p,'kód investície / reformy','kod investicie','kod')
-    const meno       = g(p,'prijímateľ meno a priezvisko / názov','žiadateľ meno a priezvisko / názov','ziadatel')
-    const pravnaForma= g(p,'prijímateľ právna forma','žiadateľ právna forma','pravna forma','právna forma')
-    const ent        = entityInfo(meno, pravnaForma)
-    if (filterKraj   !== 'all' && !kraj.includes(filterKraj))   return false
-    if (filterStav   !== 'all' && stav !== filterStav)           return false
-    if (filterKat    !== 'all' && !kat.startsWith(filterKat))    return false
-    if (filterEntity !== 'all' && ent.label !== filterEntity)    return false
-    if (filterPostavenie !== 'all') {
-      const pos = normStav(g(p,'prijímateľ postavenie','žiadateľ postavenie','prijimatel postavenie','ziadatel postavenie'))
-      if (pos !== filterPostavenie) return false
-    }
+    if (filterKraj   !== 'all' && !p.kraj.includes(filterKraj))   return false
+    if (filterStav   !== 'all' && p.stav !== filterStav)           return false
+    if (filterKat    !== 'all' && !p.kod.startsWith(filterKat))    return false
+    if (filterEntity !== 'all' && p.ent.label !== filterEntity)    return false
+    if (filterPostavenie !== 'all' && p.pos !== filterPostavenie)  return false
     return true
   }), [data, filterKraj, filterStav, filterKat, filterEntity, filterPostavenie])
 
-  // ── Markery — bulk addLayers ─────────────────────────────────────────────────
+  // ── Markery — bulk addLayers, popup sa dočíta až po kliknutí ────────────────
   useEffect(() => {
     const mcg = layersRef.current.markers
     if (!mcg) return
     mcg.clearLayers()
-    if (heatMode) return  // v heatmap móde neskrývame ale neplníme clustery
+    if (heatMode) return  // v heatmap móde neplníme clustery
     const markers = []
     filtered.forEach((p, idx) => {
-      const okres = g(p,'okres','Okres')
-      const obec  = g(p,'prijímateľ adresa mesto','žiadateľ adresa mesto','adresa mesto')
-      const base  = (obec && OBEC[obec]) || OKRES[okres]
+      const base  = (p.obec && OBEC[p.obec]) || OKRES[p.okres]
       if (!base) return
       // Menší jitter keď máme presnú obec, väčší keď len okres
-      const jScale = (obec && OBEC[obec]) ? 0.008 : 0.06
+      const jScale = (p.obec && OBEC[p.obec]) ? 0.008 : 0.06
       const jLat = (Math.sin(idx * 127.1 + 0.5) * 0.5) * jScale
       const jLng = (Math.sin(idx * 311.7 + 1.3) * 0.5) * jScale
-      const stav  = g(p,'stav projektu','stav')
-      const meta  = stavMeta(stav)
-      const poo   = parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma')) || 0
-      const pozad = parseFloat(g(p,'požadovaná suma','požadovaná suma bez dph')) || 0
-      const suma  = poo || pozad
+      const meta  = stavMeta(p.stav)
+      const suma  = p.poo || p.pozad
       const r     = suma > 0 ? Math.min(14, Math.max(5, 4 + Math.log10(suma/1000+1)*3)) : 5
-      const isActive = normStav(stav) === 'PROJEKT_V_REALIZACII'
+      const isActive = p.stav === 'PROJEKT_V_REALIZACII'
       const m = L.circleMarker([base[0]+jLat, base[1]+jLng], {
         radius: r,
         color: meta.c,
@@ -698,7 +604,13 @@ export default function App() {
         className: isActive ? 'pulse-marker' : '',
       })
       m.options.color = meta.c  // pre cluster dominant farbu
-      m.bindPopup(makePopup(p, meta, meta.c), { maxWidth:340, className:'dark-popup' })
+      m.bindPopup('<div class="pc" style="padding:14px">⏳ Načítavam detail…</div>',
+        { maxWidth:340, className:'dark-popup' })
+      m.on('popupopen', e => {
+        getDetail(p.i)
+          .then(d => e.popup.setContent(makePopup({ ...d, okres:p.okres, kraj:p.kraj }, meta, meta.c)))
+          .catch(() => e.popup.setContent('<div class="pc" style="padding:14px">❌ Detail sa nepodarilo načítať</div>'))
+      })
       markers.push(m)
     })
     mcg.addLayers(markers)
@@ -720,26 +632,13 @@ export default function App() {
   }, [filtered, heatMode])
 
   // ── Štatistiky ────────────────────────────────────────────────────────────────
-  // Hlavná POO suma: poskytnuté → zazmluvnená (bez požadovanej — tú zobrazujeme zvlášť)
-  const totalPOO  = useMemo(()=>filtered.reduce((s,p)=>
-    s+(parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma'))||0),0),[filtered])
-  // Požadovaná suma — pre žiadateľov, ktorí nemajú POO sumu
-  const totalPozadovana = useMemo(()=>filtered.reduce((s,p)=>
-    s+(parseFloat(g(p,'požadovaná suma','požadovaná suma bez dph','pozadovana suma'))||0),0),[filtered])
-  // Zazmluvnená (len projekty so zmluvou)
-  const totalZazmluvnena = useMemo(()=>filtered.reduce((s,p)=>{
-    const v = parseFloat(g(p,'zazmluvnená suma zdroj poo','zazmluvnena suma zdroj poo'))
-    return s + (v > 0 ? v : 0)
-  },0),[filtered])
-  // Zúčtované POO
-  const totalZuctovane = useMemo(()=>filtered.reduce((s,p)=>
-    s+(parseFloat(g(p,'zúčtované poo €','zuctovane poo €','zuctovane poo'))||0),0),[filtered])
-  const totalCelk = useMemo(()=>filtered.reduce((s,p)=>
-    s+(parseFloat(g(p,'celková suma projektu','celkova suma projektu','celkova_suma'))||0),0),[filtered])
+  const totalPOO        = useMemo(()=>filtered.reduce((s,p)=>s+p.poo,0),[filtered])
+  const totalPozadovana = useMemo(()=>filtered.reduce((s,p)=>s+p.pozad,0),[filtered])
+  const totalZuctovane  = useMemo(()=>filtered.reduce((s,p)=>s+p.zuc,0),[filtered])
 
   const byKraj = useMemo(()=>{
     const m={}
-    filtered.forEach(p=>{ const k=g(p,'kraj','Kraj')||'Neznámy kraj'; m[k]=(m[k]||0)+1 })
+    filtered.forEach(p=>{ const k=p.kraj||'Neznámy kraj'; m[k]=(m[k]||0)+1 })
     return Object.entries(m).sort((a,b)=>b[1]-a[1])
   },[filtered])
 
@@ -760,17 +659,16 @@ export default function App() {
 
   const byStav = useMemo(()=>{
     const m={}
-    filtered.forEach(p=>{ const s=normStav(g(p,'stav projektu','stav'))||'NEZNAMY'; m[s]=(m[s]||0)+1 })
+    filtered.forEach(p=>{ m[p.stav]=(m[p.stav]||0)+1 })
     return Object.entries(m).sort((a,b)=>b[1]-a[1])
   },[filtered])
 
   const byArea = useMemo(()=>{
     const m={}
     filtered.forEach(p=>{
-      const kat = g(p,'kód investície / reformy','kod investicie','kod')
-      if (!kat) return
-      const km = kodMeta(kat)
-      const key = km?.l || kat
+      if (!p.kod) return
+      const km = kodMeta(p.kod)
+      const key = km?.l || p.kod
       m[key] = { count:(m[key]?.count||0)+1, meta:km }
     })
     return Object.entries(m).sort((a,b)=>b[1].count-a[1].count)
@@ -779,36 +677,28 @@ export default function App() {
   const byEntity = useMemo(()=>{
     const m={}
     filtered.forEach(p=>{
-      const meno = g(p,'prijímateľ meno a priezvisko / názov',
-        'žiadateľ meno a priezvisko / názov',
-        'ziadatel meno a priezvisko / nazov','ziadatel')
-      const pravnaForma = g(p,'prijímateľ právna forma','žiadateľ právna forma','pravna forma','právna forma')
-      const ent = entityInfo(meno, pravnaForma)
+      const ent = p.ent
       if (!m[ent.label]) m[ent.label]={ count:0, icon:ent.icon, cls:ent.cls, poo:0 }
       m[ent.label].count++
-      m[ent.label].poo += parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma'))||0
+      m[ent.label].poo += p.poo
     })
     return Object.entries(m).sort((a,b)=>b[1].count-a[1].count)
   },[filtered])
 
   const pooByKraj = useMemo(()=>{
     const m={}
-    filtered.forEach(p=>{
-      const k=g(p,'kraj','Kraj')||'Neznámy kraj'
-      m[k]=(m[k]||0)+(parseFloat(g(p,'poskytnuté poo €','poskytnuté poo','zazmluvnená suma zdroj poo','poo_suma'))||0)
-    })
+    filtered.forEach(p=>{ const k=p.kraj||'Neznámy kraj'; m[k]=(m[k]||0)+p.poo })
     return m
   },[filtered])
 
-  const krajList = useMemo(()=>[...new Set(data.map(p=>g(p,'kraj','Kraj')))].filter(Boolean).sort(),[data])
-  const stavList = useMemo(()=>[...new Set(data.map(p=>normStav(g(p,'stav projektu','stav'))))].filter(Boolean).sort(),[data])
+  const krajList = useMemo(()=>[...new Set(data.map(p=>p.kraj))].filter(Boolean).sort(),[data])
+  const stavList = useMemo(()=>[...new Set(data.map(p=>p.stav))].filter(Boolean).sort(),[data])
   // Pre filter kódov — zobraz len prefix (K01, K02...)
   const katList  = useMemo(()=>{
     const prefixes = new Set()
     data.forEach(p=>{
-      const k = g(p,'kód investície / reformy','kod investicie','kod')
-      if (!k) return
-      const m = k.match(/^[KR]\d*/i)
+      if (!p.kod) return
+      const m = p.kod.match(/^[KR]\d*/i)
       if (m) prefixes.add(m[0].toUpperCase())
     })
     return [...prefixes].sort()
@@ -913,7 +803,6 @@ export default function App() {
                 <div className="st-n">{filtered.length.toLocaleString('sk')}</div>
                 <div className="st-l">projektov</div>
               </div>
-              <div className="st-sep"/>
               {totalPOO > 0 ? <>
                 <div className="st-sep"/>
                 <div className="st">
@@ -948,40 +837,41 @@ export default function App() {
           {!loading && filtered.length > 0 && (
             <div className="panel panel-finance">
               <div className="panel-title">Financovanie POO</div>
-              <div className="fin-row">
-                {totalZazmluvnena > 0 && (
-                  <div className="fin-cell">
-                    <div className="fin-val fin-val-zazml">{fmt(totalZazmluvnena)}</div>
-                    <div className="fin-lbl">Zazmluvnené POO</div>
-                  </div>
-                )}
-                {totalZuctovane > 0 && (
-                  <div className="fin-cell">
-                    <div className="fin-val fin-val-zuc">{fmt(totalZuctovane)}</div>
-                    <div className="fin-lbl">Zúčtované POO</div>
-                  </div>
-                )}
-                {totalCelk > 0 && (
-                  <div className="fin-cell">
-                    <div className="fin-val fin-val-dim">{fmt(totalCelk)}</div>
-                    <div className="fin-lbl">Celková suma</div>
-                  </div>
-                )}
-              </div>
-              {totalZazmluvnena > 0 && totalCelk > 0 && (
-                <div className="fin-bar-wrap">
-                  <div className="fin-bar-track">
-                    <div className="fin-bar-poo" style={{width:`${Math.min(100,(totalZazmluvnena/totalCelk)*100)}%`}}/>
-                    {totalZuctovane > 0 && (
-                      <div className="fin-bar-zuc" style={{width:`${Math.min(100,(totalZuctovane/totalCelk)*100)}%`}}/>
-                    )}
-                  </div>
-                  <div className="fin-bar-leg">
-                    <span className="fin-leg-poo">■ Zazml. {((totalZazmluvnena/totalCelk)*100).toFixed(0)}%</span>
-                    {totalZuctovane > 0 && <span className="fin-leg-zuc">■ Zúč. {((totalZuctovane/totalCelk)*100).toFixed(0)}%</span>}
-                    <span className="fin-leg-other">■ Iné zdroje</span>
-                  </div>
+              {(totalPOO > 0 || totalZuctovane > 0 || totalPozadovana > 0) ? (<>
+                <div className="fin-row">
+                  {totalPOO > 0 && (
+                    <div className="fin-cell">
+                      <div className="fin-val fin-val-zazml">{fmt(totalPOO)}</div>
+                      <div className="fin-lbl">Zazmluvnené POO</div>
+                    </div>
+                  )}
+                  {totalPozadovana > 0 && totalPOO === 0 && (
+                    <div className="fin-cell">
+                      <div className="fin-val fin-val-dim">{fmt(totalPozadovana)}</div>
+                      <div className="fin-lbl">Požadovaná suma</div>
+                    </div>
+                  )}
+                  {totalZuctovane > 0 && (
+                    <div className="fin-cell">
+                      <div className="fin-val fin-val-zuc">{fmt(totalZuctovane)}</div>
+                      <div className="fin-lbl">Zúčtované POO</div>
+                    </div>
+                  )}
                 </div>
+                {totalPOO > 0 && totalZuctovane > 0 && (
+                  <div className="fin-bar-wrap">
+                    <div className="fin-bar-track">
+                      <div className="fin-bar-poo" style={{width:'100%'}}/>
+                      <div className="fin-bar-zuc" style={{width:`${Math.min(100,(totalZuctovane/totalPOO)*100)}%`}}/>
+                    </div>
+                    <div className="fin-bar-leg">
+                      <span className="fin-leg-poo">■ Zazml. 100%</span>
+                      <span className="fin-leg-zuc">■ Zúč. {((totalZuctovane/totalPOO)*100).toFixed(0)}%</span>
+                    </div>
+                  </div>
+                )}
+              </>) : (
+                <p className="fin-empty-msg">Partneri nemajú priame finančné záznamy v datasete.</p>
               )}
             </div>
           )}
