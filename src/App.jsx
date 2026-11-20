@@ -8,13 +8,19 @@ import './App.css'
 import { DETAIL_CHUNK, g, normStav, entityInfo } from './poo-data.mjs'
 
 // ── 5 pilierov POO SR ─────────────────────────────────────────────────────────
+// Názvy a poradie podľa planobnovy.sk
 const PILLAR = {
-  zelena:      { l:'Zelená ekonomika',              c:'#4CAF50', icon:'🌿' },
-  vzdelavanie: { l:'Kvalitné vzdelávanie',           c:'#9C27B0', icon:'🎓' },
-  veda:        { l:'Veda, výskum, inovácie',         c:'#2196F3', icon:'🔬' },
-  zdravie:     { l:'Zdravý život',                   c:'#ef5350', icon:'❤️' },
-  sprava:      { l:'Efektívna verejná správa',       c:'#FF9800', icon:'🏛️' },
+  vzdelavanie: { l:'Kvalitné vzdelávanie',                       c:'#9C27B0', icon:'🎓' },
+  sprava:      { l:'Efektívna verejná správa a digitalizácia',   c:'#FF9800', icon:'🏛️' },
+  veda:        { l:'Veda, výskum, inovácie',                     c:'#2196F3', icon:'🔬' },
+  zelena:      { l:'Zelená ekonomika',                           c:'#4CAF50', icon:'🌿' },
+  zdravie:     { l:'Lepšie zdravie',                             c:'#ef5350', icon:'❤️' },
 }
+const PILLAR_ORDER = Object.keys(PILLAR)
+// Koľko riadkov ukázať v dlhých zoznamoch pred „Ďalšie“
+const TOP_N = 5
+// Prefix kódu investície/reformy: "K09_I01" → "K09"
+const kodPrefix = k => (k || '').match(/^[KR]\d*/i)?.[0]?.toUpperCase() || ''
 
 // ── POO Komponenty SR — kódy K01–K18 podľa oficiálneho RRP ───────────────────
 // Zdroj: planobnovy.sk / MF SR — 5 pilierov, 18 komponentov
@@ -430,6 +436,9 @@ export default function App() {
   const [filterKraj,   setFilterKraj]   = useState('all')
   const [filterStav,   setFilterStav]   = useState('all')
   const [filterKat,    setFilterKat]    = useState('all')
+  const [filterPilier, setFilterPilier] = useState('all')
+  const [openPilier,   setOpenPilier]   = useState(null)   // rozbalená oblasť v paneli
+  const [showAll,      setShowAll]      = useState({})     // { ent:true, stav:true }
   const [filterEntity,    setFilterEntity]    = useState('all')
   const [filterPostavenie,setFilterPostavenie] = useState('all') // 'all' | 'PRIJIMATEL' | 'PARTNER' | 'ZIADATEL'
   const [showKraje,    setShowKraje]    = useState(true)
@@ -451,6 +460,8 @@ export default function App() {
           obec:  dict.obec[r[2]]  || '',
           stav:  dict.stav[r[3]]  || 'NEZNAMY',
           kod:   dict.kod[r[4]]   || '',
+          kp:    kodPrefix(dict.kod[r[4]]),
+          pil:   kodMeta(dict.kod[r[4]])?.p || '',
           ent:   dict.ent[r[5]]   || { icon:'🏢', label:'Právnická osoba', cls:'entity-sro' },
           pos:   dict.pos[r[6]]   || '',
           poo:   r[7] || 0,
@@ -568,14 +579,31 @@ export default function App() {
   }, [tileMode])
 
   // ── Filtrované dáta ──────────────────────────────────────────────────────────
-  const filtered = useMemo(() => data.filter(p => {
+  // Všetky filtre okrem oblasti/komponentu — z toho sa počíta panel Oblastí,
+  // aby bolo vždy vidno všetkých 5 oblastí aj pri aktívnom výbere
+  const filteredBase = useMemo(() => data.filter(p => {
     if (filterKraj   !== 'all' && !p.kraj.includes(filterKraj))   return false
     if (filterStav   !== 'all' && p.stav !== filterStav)           return false
-    if (filterKat    !== 'all' && !p.kod.startsWith(filterKat))    return false
     if (filterEntity !== 'all' && p.ent.label !== filterEntity)    return false
     if (filterPostavenie !== 'all' && p.pos !== filterPostavenie)  return false
     return true
-  }), [data, filterKraj, filterStav, filterKat, filterEntity, filterPostavenie])
+  }), [data, filterKraj, filterStav, filterEntity, filterPostavenie])
+
+  const filtered = useMemo(() => filteredBase.filter(p => {
+    if (filterPilier !== 'all' && p.pil !== filterPilier) return false
+    if (filterKat    !== 'all' && p.kp  !== filterKat)    return false
+    return true
+  }), [filteredBase, filterPilier, filterKat])
+
+  const selectPilier = key => {
+    setFilterKat('all')
+    setFilterPilier(cur => cur === key ? 'all' : key)
+  }
+  const selectKomponent = (pil, kp) => {
+    if (filterKat === kp) { setFilterKat('all'); return }
+    setFilterPilier(pil || 'all')
+    setFilterKat(kp)
+  }
 
   // ── Markery — bulk addLayers, popup sa dočíta až po kliknutí ────────────────
   useEffect(() => {
@@ -663,16 +691,25 @@ export default function App() {
     return Object.entries(m).sort((a,b)=>b[1]-a[1])
   },[filtered])
 
-  const byArea = useMemo(()=>{
-    const m={}
-    filtered.forEach(p=>{
-      if (!p.kod) return
-      const km = kodMeta(p.kod)
-      const key = km?.l || p.kod
-      m[key] = { count:(m[key]?.count||0)+1, meta:km }
+  // 5 oblastí POO → komponenty (z filteredBase, aby oblasti nezmizli pri výbere)
+  const byPilier = useMemo(()=>{
+    const m = Object.fromEntries(PILLAR_ORDER.map(k=>[k,{ count:0, poo:0, komp:{} }]))
+    let other = 0
+    filteredBase.forEach(p=>{
+      const b = m[p.pil]
+      if (!b) { other++; return }
+      b.count++; b.poo += p.poo
+      if (p.kp) {
+        const kk = b.komp[p.kp] || (b.komp[p.kp] = { count:0, poo:0, meta:kodMeta(p.kp) })
+        kk.count++; kk.poo += p.poo
+      }
     })
-    return Object.entries(m).sort((a,b)=>b[1].count-a[1].count)
-  },[filtered])
+    const list = PILLAR_ORDER.map(k=>[k, {
+      ...m[k],
+      komp: Object.entries(m[k].komp).sort((a,b)=>a[0].localeCompare(b[0])),
+    }])
+    return { list, other }
+  },[filteredBase])
 
   const byEntity = useMemo(()=>{
     const m={}
@@ -694,14 +731,14 @@ export default function App() {
   const krajList = useMemo(()=>[...new Set(data.map(p=>p.kraj))].filter(Boolean).sort(),[data])
   const stavList = useMemo(()=>[...new Set(data.map(p=>p.stav))].filter(Boolean).sort(),[data])
   // Pre filter kódov — zobraz len prefix (K01, K02...)
+  // Kódy komponentov zoskupené podľa oblasti — pre select v hlavičke
   const katList  = useMemo(()=>{
-    const prefixes = new Set()
+    const m = {}
     data.forEach(p=>{
-      if (!p.kod) return
-      const m = p.kod.match(/^[KR]\d*/i)
-      if (m) prefixes.add(m[0].toUpperCase())
+      if (!p.kp || !p.pil) return
+      ;(m[p.pil] ||= new Set()).add(p.kp)
     })
-    return [...prefixes].sort()
+    return Object.fromEntries(Object.entries(m).map(([k,s])=>[k,[...s].sort()]))
   },[data])
 
   const maxKraj = byKraj[0]?.[1]||1
@@ -770,12 +807,23 @@ export default function App() {
             {stavList.map(s=><option key={s} value={s}>{stavMeta(s).l}</option>)}
           </select>
 
-          <select className="sel sel-wide" value={filterKat} onChange={e=>setFilterKat(e.target.value)}>
-            <option value="all">Všetky kódy</option>
-            {katList.map(k=>{
-              const km = kodMeta(k)
-              return <option key={k} value={k}>{k}{km?.l ? ' · '+km.l : ''}</option>
-            })}
+          <select className="sel sel-wide"
+            value={filterKat!=='all' ? 'kp:'+filterKat : filterPilier!=='all' ? 'pil:'+filterPilier : 'all'}
+            onChange={e=>{
+              const v = e.target.value
+              if (v === 'all') { setFilterPilier('all'); setFilterKat('all') }
+              else if (v.startsWith('pil:')) { setFilterKat('all'); setFilterPilier(v.slice(4)) }
+              else { const kp = v.slice(3); setFilterPilier(kodMeta(kp)?.p || 'all'); setFilterKat(kp) }
+            }}>
+            <option value="all">Všetky oblasti</option>
+            {PILLAR_ORDER.map(pk=>(
+              <optgroup key={pk} label={`${PILLAR[pk].icon} ${PILLAR[pk].l}`}>
+                <option value={'pil:'+pk}>Celá oblasť</option>
+                {(katList[pk]||[]).map(k=>(
+                  <option key={k} value={'kp:'+k}>{k} · {kodMeta(k)?.l}</option>
+                ))}
+              </optgroup>
+            ))}
           </select>
 
           <div className="btn-group">
@@ -897,6 +945,60 @@ export default function App() {
             </div>
           )}
 
+          {/* ── Oblasti plánu obnovy (5 oblastí podľa planobnovy.sk) ── */}
+          {!loading && (
+            <div className="panel">
+              <div className="panel-title-row">
+                <span className="panel-title" style={{marginBottom:0}}>Oblasti plánu obnovy</span>
+                {(filterPilier!=='all' || filterKat!=='all') && (
+                  <button className="vt-btn" onClick={()=>{ setFilterPilier('all'); setFilterKat('all') }}>zrušiť</button>
+                )}
+              </div>
+              {byPilier.list.map(([pk,{count,poo,komp}])=>{
+                const P = PILLAR[pk]
+                const max = Math.max(...byPilier.list.map(([,v])=>v.count), 1)
+                const active = filterPilier === pk
+                const open = openPilier === pk
+                const dim = filterPilier!=='all' && !active
+                return (
+                  <div key={pk} className={`pil${active?' pil-active':''}`} style={{opacity:dim?.45:1}}>
+                    <div className="pil-head" onClick={()=>selectPilier(pk)}>
+                      <span className="pil-icon">{P.icon}</span>
+                      <span className="pil-lbl">{P.l}</span>
+                      <span className="pil-n" style={{color:P.c}}>{count.toLocaleString('sk')}</span>
+                      <button className={`pil-chev${open?' pil-chev-open':''}`}
+                        title={open?'Skryť komponenty':'Zobraziť komponenty'}
+                        onClick={e=>{ e.stopPropagation(); setOpenPilier(open?null:pk) }}>▸</button>
+                    </div>
+                    <div className="bar-track">
+                      <div className="bar-fill" style={{background:P.c,width:`${(count/max)*100}%`}}/>
+                    </div>
+                    {poo > 0 && <div className="pil-poo">{fmt(poo)}</div>}
+                    {open && (
+                      <div className="pil-sub">
+                        {komp.length === 0 && <div className="fin-empty-msg">Žiadne projekty</div>}
+                        {komp.map(([kp,{count:kc,meta}])=>{
+                          const kActive = filterKat === kp
+                          return (
+                            <div key={kp} className={`pil-komp${kActive?' pil-komp-on':''}`}
+                              onClick={()=>selectKomponent(pk, kp)}>
+                              <span className="pil-komp-kod">{kp}</span>
+                              <span className="pil-komp-lbl">{meta?.icon} {meta?.l}</span>
+                              <span className="pil-komp-n">{kc.toLocaleString('sk')}</span>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
+              {byPilier.other > 0 && (
+                <div className="fin-empty-msg">+ {byPilier.other.toLocaleString('sk')} bez priradenej oblasti</div>
+              )}
+            </div>
+          )}
+
           {/* ── Projekty podľa kraja ────────────────────────────── */}
           <div className="panel">
             <div className="panel-title-row">
@@ -939,7 +1041,7 @@ export default function App() {
           {byEntity.length > 0 && (
             <div className="panel">
               <div className="panel-title">Typ subjektu</div>
-              {byEntity.map(([label,{count,icon,cls,poo}])=>{
+              {(showAll.ent ? byEntity : byEntity.slice(0, TOP_N)).map(([label,{count,icon,cls,poo}])=>{
                 const maxE = byEntity[0]?.[1]?.count || 1
                 const pct = (count/maxE)*100
                 const active = filterEntity === label
@@ -961,13 +1063,18 @@ export default function App() {
                   </div>
                 )
               })}
+              {byEntity.length > TOP_N && (
+                <button className="more-btn" onClick={()=>setShowAll(s=>({...s, ent:!s.ent}))}>
+                  {showAll.ent ? '▴ Menej' : `▾ Ďalšie (${byEntity.length - TOP_N})`}
+                </button>
+              )}
             </div>
           )}
 
           {/* ── Stav projektov ──────────────────────────────────── */}
           <div className="panel">
             <div className="panel-title">Stav projektov</div>
-            {byStav.map(([stav,count])=>{
+            {(showAll.stav ? byStav : byStav.slice(0, TOP_N)).map(([stav,count])=>{
               const meta = stavMeta(stav)
               const active = filterStav === stav
               const pct = (count/filtered.length)*100
@@ -982,31 +1089,12 @@ export default function App() {
                 </div>
               )
             })}
+            {byStav.length > TOP_N && (
+              <button className="more-btn" onClick={()=>setShowAll(s=>({...s, stav:!s.stav}))}>
+                {showAll.stav ? '▴ Menej' : `▾ Ďalšie (${byStav.length - TOP_N})`}
+              </button>
+            )}
           </div>
-
-          {/* ── Oblasti plánu obnovy ────────────────────────────── */}
-          {byArea.length > 0 && (
-            <div className="panel">
-              <div className="panel-title">Oblasti plánu obnovy</div>
-              {byArea.map(([label,{count,meta}])=>{
-                const col = meta?.c || '#546E7A'
-                const maxA = byArea[0]?.[1]?.count || 1
-                return (
-                  <div key={label} className="area-row">
-                    <div className="area-head">
-                      <span className="area-icon">{meta?.icon||'📋'}</span>
-                      <span className="area-lbl">{label}</span>
-                      <span className="area-n" style={{color:col}}>{count.toLocaleString('sk')}</span>
-                    </div>
-                    <div className="bar-track">
-                      <div className="bar-fill" style={{background:col,width:`${(count/maxA)*100}%`}}/>
-                    </div>
-                  </div>
-                )
-              })}
-            </div>
-          )}
-
         </aside>
       </div>
     </div>
