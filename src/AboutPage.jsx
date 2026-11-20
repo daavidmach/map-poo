@@ -77,7 +77,7 @@ export default function AboutPage({ onClose }) {
     <div className="ab" role="dialog" aria-label="O projekte">
       <div className="ab-top">
         <div className="ab-brand">🇸🇰 <b>Plán obnovy SR</b> <span>· mapa projektov</span></div>
-        <button className="ab-back" onClick={onClose}>🗺️ Späť na mapu</button>
+        <button className="ab-back" onClick={onClose}>🗺️ Otvoriť mapu</button>
       </div>
 
       <div className="ab-wrap">
@@ -233,7 +233,7 @@ export default function AboutPage({ onClose }) {
             Nezávislá vizualizácia z verejne dostupných otvorených dát. Nejde o oficiálnu stránku
             Úradu podpredsedu vlády SR pre Plán obnovy a znalostnú ekonomiku ani planobnovy.sk. Ak nájdete chybu, dajte vedieť — radi ju opravíme.
           </p>
-          <button className="ab-cta" onClick={onClose}>🗺️ Späť na mapu</button>
+          <button className="ab-cta" onClick={onClose}>🗺️ Otvoriť mapu projektov</button>
         </footer>
       </div>
     </div>

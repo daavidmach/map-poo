@@ -420,18 +420,21 @@ export default function App() {
   const [openPilier,   setOpenPilier]   = useState(null)   // rozbalená oblasť v paneli
   const [showAll,      setShowAll]      = useState({})     // { ent:true, stav:true }
   const [sheetOpen,    setSheetOpen]    = useState(false)  // mobil: vysunutý panel
-  // Stránka „O projekte“ — adresa #o-projekte, aby sa dala poslať ako odkaz
-  const [aboutOpen,    setAboutOpen]    = useState(() => window.location.hash === '#o-projekte')
+  // Úvodná stránka „O projekte“ sa zobrazí ako prvá; mapa je na adrese #mapa
+  // (odkaz na mapu sa dá poslať priamo, tlačidlo Späť v prehliadači vráti na úvod)
+  const isMapHash = () => window.location.hash === '#mapa'
+  const [aboutOpen,    setAboutOpen]    = useState(() => !isMapHash())
   useEffect(() => {
-    const onHash = () => setAboutOpen(window.location.hash === '#o-projekte')
+    const onHash = () => setAboutOpen(!isMapHash())
     window.addEventListener('hashchange', onHash)
     return () => window.removeEventListener('hashchange', onHash)
   }, [])
+  // po prechode na mapu prepočítaj jej veľkosť (bola schovaná pod úvodom)
+  useEffect(() => {
+    if (!aboutOpen) setTimeout(() => leafletRef.current?.invalidateSize(), 50)
+  }, [aboutOpen])
   const openAbout  = () => { window.location.hash = 'o-projekte' }
-  const closeAbout = () => {
-    history.replaceState(null, '', window.location.pathname + window.location.search)
-    setAboutOpen(false)
-  }
+  const closeAbout = () => { window.location.hash = 'mapa' }
   const [filterEntity,    setFilterEntity]    = useState('all')
   const [filterPostavenie,setFilterPostavenie] = useState('all') // 'all' | 'PRIJIMATEL' | 'PARTNER' | 'ZIADATEL'
   const [showKraje,    setShowKraje]    = useState(true)
