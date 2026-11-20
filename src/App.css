@@ -747,3 +747,200 @@ body.tile-light .kraj-tooltip {
 
 /* typ subjektu — farba textu podľa typu, bez podfarbenia pozadia */
 .ent-lbl[class*="entity-"] { background: transparent !important; padding: 0 !important; }
+
+/* ══ Mobil / úzke obrazovky ═══════════════════════════════════════════ */
+.sheet-handle { display: none; }
+
+@media (max-width: 768px) {
+  body { font-size: 14px; }
+
+  /* ── Hlavička: 2 riadky — značka + čísla, pod tým posuvné filtre ── */
+  .hdr {
+    flex-wrap: wrap;
+    height: auto;
+    padding: 8px 10px 6px;
+    gap: 6px 10px;
+  }
+  .hdr-brand   { order: 1; gap: 8px; }
+  .hdr-flag    { font-size: 18px; }
+  .hdr-title   { font-size: 13px; }
+  .hdr-sub     { display: none; }
+  .hdr-stats {
+    order: 2;
+    margin-left: auto;
+    border-left: none;
+    padding-left: 0;
+    gap: 8px;
+  }
+  .st-n   { font-size: 13px; }
+  .st-l   { font-size: 8px; }
+  .st-sep { height: 22px; }
+  .hdr-stats .st-zuc { display: none; }   /* zúčtované — je v paneli */
+
+  .hdr-filters {
+    order: 3;
+    flex: 1 1 100%;
+    overflow-x: auto;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+    scrollbar-width: none;
+    -webkit-overflow-scrolling: touch;
+  }
+  .hdr-filters::-webkit-scrollbar { display: none; }
+  .sel, .sel-wide { min-width: 0; flex-shrink: 0; font-size: 13px; padding: 8px 26px 8px 10px; max-width: 70vw; }
+  .btn { padding: 8px 10px; font-size: 13px; flex-shrink: 0; }
+  .btn-group { flex-shrink: 0; }
+
+  /* ── Mapa na celú plochu, panel ako spodný „sheet“ ── */
+  .main { position: relative; }
+  .map  { width: 100%; }
+
+  .sidebar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    width: auto;
+    height: 72%;
+    z-index: 1000;
+    border-left: none;
+    border-top: 1px solid var(--bdr2);
+    border-radius: 14px 14px 0 0;
+    box-shadow: 0 -6px 24px rgba(0,0,0,.6);
+    transform: translateY(calc(100% - 52px));
+    transition: transform .28s cubic-bezier(.4,0,.2,1);
+    overscroll-behavior: contain;
+  }
+  .sidebar.sheet-open { transform: translateY(0); }
+
+  .sheet-handle {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    width: 100%;
+    min-height: 52px;
+    padding: 8px 12px 10px;
+    background: var(--bg1);
+    border: none;
+    border-bottom: 1px solid var(--bdr);
+    border-radius: 14px 14px 0 0;
+    color: var(--txt1);
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .sheet-grip { width: 40px; height: 4px; border-radius: 2px; background: var(--bdr2); }
+  .sheet-txt b { color: var(--acc2); font-weight: 700; }
+
+  /* ── Väčšie dotykové plochy v paneli ── */
+  .panel { padding: 14px 14px 12px; }
+  .bar-row, .stav-row, .ent-row, .pil { padding-top: 8px; padding-bottom: 8px; }
+  .pil-chev { width: 32px; height: 32px; font-size: 14px; }
+  .pil-komp { padding: 8px 6px; font-size: 12px; }
+  .pos-btn  { padding: 9px 8px; font-size: 12px; }
+  .vt-btn   { padding: 5px 9px; }
+  .more-btn { padding: 9px 6px; font-size: 11px; }
+
+  /* ── Leaflet ovládanie a popup ── */
+  .leaflet-control-zoom { display: none; }             /* na mobile sa zoomuje prstami */
+  .dark-popup .leaflet-popup-content-wrapper { max-width: 88vw !important; }
+  .pc { width: min(320px, 84vw); }
+  .pc-title { font-size: 14px; }
+  .pc-row   { font-size: 12px; padding: 4px 0; }
+  .pc-btn   { padding: 11px 12px; font-size: 13px; }
+  .leaflet-control-attribution { font-size: 9px !important; max-width: 60vw; }
+}
+
+@media (max-width: 380px) {
+  .st-l { font-size: 7px; }
+  .st-n { font-size: 12px; }
+}
+
+/* ── Oblasti plánu obnovy (5 pilierov) ────────────────────────────── */
+.pil {
+  padding: 6px 6px 5px;
+  border-radius: var(--rad);
+  margin-bottom: 4px;
+  transition: background .12s, opacity .15s;
+}
+.pil:hover     { background: var(--bg3); }
+.pil-active    { background: var(--bg2); box-shadow: inset 0 0 0 1px var(--bdr2); }
+.pil-head {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 5px;
+  cursor: pointer;
+}
+.pil-icon { font-size: 15px; line-height: 1; }
+.pil-lbl  { flex: 1; font-size: 12px; color: var(--txt1); line-height: 1.3; font-weight: 600; }
+.pil-n    { font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.pil-chev {
+  background: transparent;
+  border: none;
+  color: var(--txt3);
+  cursor: pointer;
+  font-size: 11px;
+  width: 18px; height: 18px;
+  border-radius: 4px;
+  transition: transform .15s, color .12s, background .12s;
+  flex-shrink: 0;
+}
+.pil-chev:hover     { color: var(--txt0); background: var(--bg3); }
+.pil-chev-open      { transform: rotate(90deg); color: var(--acc2); }
+.pil-poo {
+  font-size: 10px;
+  color: var(--gre);
+  text-align: right;
+  margin-top: 3px;
+  font-weight: 600;
+}
+.pil-sub {
+  margin: 6px 0 2px 8px;
+  padding-left: 8px;
+  border-left: 1px solid var(--bdr2);
+}
+.pil-komp {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 5px;
+  border-radius: 4px;
+  font-size: 11px;
+  cursor: pointer;
+  transition: background .1s;
+}
+.pil-komp:hover   { background: var(--bg3); }
+.pil-komp-on      { background: rgba(58,127,202,.15); box-shadow: inset 0 0 0 1px var(--acc); }
+.pil-komp-kod     { font-size: 10px; font-weight: 700; color: var(--txt3); min-width: 28px; }
+.pil-komp-lbl     { flex: 1; color: var(--txt2); line-height: 1.3; }
+.pil-komp-n       { font-size: 10px; color: var(--txt2); font-weight: 600; }
+
+/* ── „Ďalšie / Menej“ pod dlhými zoznamami ─────────────────────────── */
+.more-btn {
+  display: block;
+  width: 100%;
+  margin-top: 4px;
+  padding: 4px 6px;
+  background: transparent;
+  border: 1px dashed var(--bdr2);
+  border-radius: var(--rad);
+  color: var(--txt3);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .05em;
+  cursor: pointer;
+  transition: color .12s, border-color .12s;
+}
+.more-btn:hover { color: var(--acc2); border-color: var(--acc); }
+
+/* select optgroup v tmavej téme */
+.sel optgroup { background: var(--bg1); color: var(--txt2); font-style: normal; }
+.sel option   { background: var(--bg2); color: var(--txt1); }
+
+/* typ subjektu — farba textu podľa typu, bez podfarbenia pozadia */
+.ent-lbl[class*="entity-"] { background: transparent !important; padding: 0 !important; }

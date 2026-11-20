@@ -439,6 +439,7 @@ export default function App() {
   const [filterPilier, setFilterPilier] = useState('all')
   const [openPilier,   setOpenPilier]   = useState(null)   // rozbalená oblasť v paneli
   const [showAll,      setShowAll]      = useState({})     // { ent:true, stav:true }
+  const [sheetOpen,    setSheetOpen]    = useState(false)  // mobil: vysunutý panel
   const [filterEntity,    setFilterEntity]    = useState('all')
   const [filterPostavenie,setFilterPostavenie] = useState('all') // 'all' | 'PRIJIMATEL' | 'PARTNER' | 'ZIADATEL'
   const [showKraje,    setShowKraje]    = useState(true)
@@ -484,6 +485,8 @@ export default function App() {
       attributionControl: true,
     })
     L.control.zoom({ position:'topright' }).addTo(map)
+    // Celé Slovensko na každej obrazovke (aj na úzkom mobile)
+    map.fitBounds([[47.73, 16.83], [49.61, 22.57]], { padding:[10, 10] })
 
     // Tile layer — dark predvolene, prepnuteľné
     tileLayerRef.current = L.tileLayer(
@@ -865,8 +868,8 @@ export default function App() {
                 </div>
               </> : null}
               {totalZuctovane > 0 && <>
-                <div className="st-sep"/>
-                <div className="st">
+                <div className="st-sep st-zuc"/>
+                <div className="st st-zuc">
                   <div className="st-n st-blue">{fmt(totalZuctovane)}</div>
                   <div className="st-l">zúčtované POO</div>
                 </div>
@@ -879,7 +882,17 @@ export default function App() {
       <div className="main">
         <div ref={mapRef} className="map" />
 
-        <aside className="sidebar">
+        <aside className={`sidebar${sheetOpen?' sheet-open':''}`}>
+
+          {/* ── Mobil: úchyt spodného panela (na desktope skrytý) ── */}
+          <button className="sheet-handle" onClick={()=>setSheetOpen(o=>!o)}
+            aria-expanded={sheetOpen}>
+            <span className="sheet-grip"/>
+            <span className="sheet-txt">
+              {sheetOpen ? '▾ Skryť panel' : '▴ Filtre a štatistiky'}
+              <b> · {filtered.length.toLocaleString('sk')} projektov</b>
+            </span>
+          </button>
 
           {/* ── Súhrn financií ──────────────────────────────────── */}
           {!loading && filtered.length > 0 && (
