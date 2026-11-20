@@ -7,6 +7,8 @@ import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import './App.css'
 import { DETAIL_CHUNK, g, entityInfo, STAV_GROUPS } from './poo-data.mjs'
 import AboutPage from './AboutPage.jsx'
+import FeedbackModal from './FeedbackModal.jsx'
+import Credits from './Credits.jsx'
 
 // ── 5 pilierov POO SR ─────────────────────────────────────────────────────────
 // Názvy a poradie podľa planobnovy.sk
@@ -440,7 +442,18 @@ export default function App() {
   const [showKraje,    setShowKraje]    = useState(true)
   const [heatMode,     setHeatMode]     = useState(false)
   const [krajView,     setKrajView]     = useState('count') // 'count' | 'suma'
-  const [tileMode,     setTileMode]     = useState('dark')  // 'dark' | 'light'
+  // Téma celej stránky (úvod aj mapa) — predvolene svetlá, voľba sa pamätá
+  const [theme, setTheme] = useState(() => {
+    try { return localStorage.getItem('poo-theme') || 'light' } catch { return 'light' }
+  })
+  const toggleTheme = () => setTheme(t => t === 'light' ? 'dark' : 'light')
+  useEffect(() => {
+    document.body.classList.toggle('theme-light', theme === 'light')
+    document.body.classList.toggle('tile-light', theme === 'light')
+    try { localStorage.setItem('poo-theme', theme) } catch { /* súkromný režim */ }
+  }, [theme])
+  const tileMode = theme
+  const [feedbackOpen, setFeedbackOpen] = useState(false)
   const tileLayerRef = useRef(null)
 
   // ── Načítaj JSON ─────────────────────────────────────────────────────────────
@@ -574,7 +587,7 @@ export default function App() {
         attr: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
       },
       light: {
-        url: 'https://tiles.stadiamaps.com/tiles/outdoors/{z}/{x}/{y}{r}.png',
+        url: 'https://tiles.stadiamaps.com/tiles/alidade_smooth/{z}/{x}/{y}{r}.png',
         attr: '© <a href="https://stadiamaps.com/">Stadia Maps</a> © <a href="https://openstreetmap.org/copyright">OSM</a>',
       },
     }
@@ -838,8 +851,8 @@ export default function App() {
               🔥 Heatmap
             </button>
             <button
-              className={`btn btn-tile${tileMode==='light'?' btn-on':''}`}
-              onClick={()=>setTileMode(v=>v==='dark'?'light':'dark')}
+              className="btn btn-tile"
+              onClick={toggleTheme}
               title="Prepnúť tmavú/svetlú mapu">
               {tileMode==='dark' ? '☀️ Svetlá' : '🌙 Tmavá'}
             </button>
@@ -1117,17 +1130,16 @@ export default function App() {
               <b> Úrad podpredsedu vlády SR pre Plán obnovy a znalostnú ekonomiku</b> v Národnom katalógu otvorených dát.
               Dáta pochádzajú zo systému ISPO.
             </p>
-            <ul className="src-list">
-              <li><a href="https://data.slovensko.sk/datasety/ba6af44e-51ca-4590-9774-d4aac63cec82" target="_blank" rel="noopener">📊 data.slovensko.sk — prijímatelia (aktuálny)</a></li>
-              <li><a href="https://ispo.planobnovy.sk/vyzvy" target="_blank" rel="noopener">🗂️ ISPO portál — výzvy</a></li>
-              <li><a href="https://www.planobnovy.sk/" target="_blank" rel="noopener">🌐 planobnovy.sk</a></li>
-            </ul>
+            <Credits compact />
             <button className="src-more" onClick={openAbout}>Čo priniesol plán obnovy →</button>
+            <button className="src-bug" onClick={()=>setFeedbackOpen(true)}>🐞 Nahlásiť chybu alebo návrh</button>
           </div>
         </aside>
       </div>
 
-      {aboutOpen && <AboutPage onClose={closeAbout} />}
+      {aboutOpen && <AboutPage onClose={closeAbout} theme={theme} onToggleTheme={toggleTheme}
+        onFeedback={()=>setFeedbackOpen(true)} />}
+      {feedbackOpen && <FeedbackModal onClose={()=>setFeedbackOpen(false)} where={aboutOpen ? 'Úvodná stránka' : 'Mapa'} />}
     </div>
   )
 }

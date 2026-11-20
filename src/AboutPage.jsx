@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
+import Credits, { REPO_URL, DATASET_URL, ISPO_URL } from './Credits.jsx'
 
 // ── Stránka „O projekte“ — čo priniesol plán obnovy + odkiaľ sú dáta ─────────
 // Čísla sa načítajú z public/data/summary.json (vyrába scripts/prepare-data.mjs)
 
 const ALOKACIA = 6.4e9
-const DATASET_URL = 'https://data.slovensko.sk/datasety/ba6af44e-51ca-4590-9774-d4aac63cec82'
 
 const PILLARS = [
   ['vzdelavanie', 'Kvalitné vzdelávanie',                     '#9C27B0', '🎓'],
@@ -53,7 +53,7 @@ function BigStat({ value, format, label, sub, color, bar }) {
   )
 }
 
-export default function AboutPage({ onClose }) {
+export default function AboutPage({ onClose, theme, onToggleTheme, onFeedback }) {
   const [s, setS] = useState(null)
   const [err, setErr] = useState(false)
 
@@ -77,7 +77,13 @@ export default function AboutPage({ onClose }) {
     <div className="ab" role="dialog" aria-label="O projekte">
       <div className="ab-top">
         <div className="ab-brand">🇸🇰 <b>Plán obnovy SR</b> <span>· mapa projektov</span></div>
-        <button className="ab-back" onClick={onClose}>🗺️ Otvoriť mapu</button>
+        <div className="ab-top-actions">
+          <button className="ab-theme" onClick={onToggleTheme}
+            title={theme === 'light' ? 'Prepnúť na tmavú tému' : 'Prepnúť na svetlú tému'}>
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+          <button className="ab-back" onClick={onClose}>🗺️ Otvoriť mapu</button>
+        </div>
       </div>
 
       <div className="ab-wrap">
@@ -165,6 +171,8 @@ export default function AboutPage({ onClose }) {
           <h2>Odkiaľ sú dáta</h2>
           <p className="ab-sec-lead">
             Všetko na tejto stránke vychádza z oficiálnych, verejne dostupných údajov. Nič sme nedopĺňali odhadom.
+            Celý zdrojový kód aj spôsob spracovania dát sú otvorené na{' '}
+            <a href={REPO_URL} target="_blank" rel="noopener">GitHube</a>.
           </p>
           <div className="ab-sources">
             <a className="ab-src" href={DATASET_URL} target="_blank" rel="noopener">
@@ -176,7 +184,7 @@ export default function AboutPage({ onClose }) {
                 <span>data.slovensko.sk →</span>
               </div>
             </a>
-            <a className="ab-src" href="https://ispo.planobnovy.sk/vyzvy" target="_blank" rel="noopener">
+            <a className="ab-src" href={ISPO_URL} target="_blank" rel="noopener">
               <div className="ab-src-icon">🗂️</div>
               <div>
                 <b>ISPO — informačný systém plánu obnovy</b>
@@ -228,12 +236,26 @@ export default function AboutPage({ onClose }) {
           </div>
         </section>
 
+        {/* ── Spätná väzba ────────────────────────────────────── */}
+        <section className="ab-feedback">
+          <div className="ab-feedback-icon">🐞</div>
+          <div className="ab-feedback-txt">
+            <h2>Našli ste chybu alebo máte nápad?</h2>
+            <p>Nesedí suma, chýba projekt, niečo nefunguje na mobile? Napíšte nám — každá pripomienka pomôže.</p>
+          </div>
+          <button className="ab-cta ab-cta-alt" onClick={onFeedback}>Nahlásiť chybu</button>
+        </section>
+
         <footer className="ab-foot">
-          <p>
-            Nezávislá vizualizácia z verejne dostupných otvorených dát. Nejde o oficiálnu stránku
-            Úradu podpredsedu vlády SR pre Plán obnovy a znalostnú ekonomiku ani planobnovy.sk. Ak nájdete chybu, dajte vedieť — radi ju opravíme.
-          </p>
-          <button className="ab-cta" onClick={onClose}>🗺️ Otvoriť mapu projektov</button>
+          <Credits />
+          <div className="ab-foot-row">
+            <p>
+              Nezávislá vizualizácia z verejne dostupných otvorených dát. Nejde o oficiálnu stránku
+              Úradu podpredsedu vlády SR pre Plán obnovy a znalostnú ekonomiku ani planobnovy.sk.
+              Ak nájdete chybu, dajte vedieť — radi ju opravíme.
+            </p>
+            <button className="ab-cta" onClick={onClose}>🗺️ Otvoriť mapu projektov</button>
+          </div>
         </footer>
       </div>
     </div>
