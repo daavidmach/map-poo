@@ -11,7 +11,7 @@
 // Spustenie v koreni projektu:
 //   node --max-old-space-size=6144 scripts/prepare-data.mjs public/planobnovy.json
 
-import { readFileSync, writeFileSync, mkdirSync, rmSync, statSync, readdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, rmSync, statSync, readdirSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   DETAIL_CHUNK, F, DETAIL_FIELDS, g, normStav, normalizeRecord, entityInfo, pillarOf, stavGroup,
@@ -44,17 +44,34 @@ const D = { kraj:makeDict(), okres:makeDict(), obec:makeDict(), stav:makeDict(),
 const entList = [null]
 const num = v => { const n = parseFloat(v); return n ? Math.round(n * 100) / 100 : 0 }
 
+// Iba polia potrebné pre body, detaily a súhrn — pod kanonickým kľúčom
+const SLIM = [
+  ...DETAIL_FIELDS,
+  F.kraj, F.okres, F.obec, F.stav, F.meno, F.forma,
+  ['posúdenie výsledok', 'posudenie vysledok'],
+]
+function slimRecord(full) {
+  const o = {}
+  for (const aliases of SLIM) {
+    const v = g(full, ...aliases)
+    if (v !== '') o[aliases[0]] = v
+  }
+  return o
+}
+
 // ── 1. prechod: normalizácia + zoskupenie riadkov podľa kódu žiadosti ───────
 const recs = new Array(arr.length)
 const apps = new Map()            // kód žiadosti → [indexy riadkov]
 arr.forEach((rawP, i) => {
-  const p = normalizeRecord(rawP)
+  const full = normalizeRecord(rawP)
   arr[i] = null                   // uvoľni pamäť
-  const pos = normStav(g(p, ...F.pos))
+  // ponecháme len polia, ktoré naozaj potrebujeme (šetrí RAM pri 200+ MB datasete)
+  const p = slimRecord(full)
+  const pos = normStav(g(full, ...F.pos))
   const r = {
     p, pos,
     poo: num(g(p, ...F.poo)), zuc: num(g(p, ...F.zuc)), pozad: num(g(p, ...F.pozad)),
-    kz: g(p, 'kód žiadosti', 'kód projektu', 'kod projektu', 'kod ziadosti') || `__row${i}`,
+    kz: g(full, 'kód žiadosti', 'kód projektu', 'kod projektu', 'kod ziadosti') || `__row${i}`,
   }
   recs[i] = r
   if (!apps.has(r.kz)) apps.set(r.kz, [])
@@ -82,11 +99,14 @@ for (const [kz, idxs] of apps) {
 }
 
 // ── 3. výstup bodov + detailov + súhrnu ──────────────────────────────────────
-rmSync(outDir, { recursive: true, force: true })
-mkdirSync(join(outDir, 'd'), { recursive: true })
+// píšeme do dočasného priečinka — staré dáta zmažeme až keď je všetko hotové
+const finalDir = outDir
+const tmpDir = outDir + '.tmp'
+rmSync(tmpDir, { recursive: true, force: true })
+mkdirSync(join(tmpDir, 'd'), { recursive: true })
 const detailKeys = DETAIL_FIELDS.map(a => a[0])
 let chunk = []
-const flush = n => writeFileSync(join(outDir, 'd', `${n}.json`), JSON.stringify({ k: detailKeys, r: chunk }))
+const flush = n => writeFileSync(join(tmpDir, 'd', `${n}.json`), JSON.stringify({ k: detailKeys, r: chunk }))
 
 // Hmatateľné výsledky — podľa názvu výzvy (počítajú sa podporené žiadosti, nie riadky)
 const IMPACT = [
@@ -157,7 +177,7 @@ if (chunk.length) flush(Math.floor((recs.length - 1) / DETAIL_CHUNK))
 
 const dict = Object.fromEntries(Object.entries(D).map(([k, d]) => [k, d.list]))
 dict.ent = entList
-writeFileSync(join(outDir, 'points.json'), JSON.stringify({ dict, rows }))
+writeFileSync(join(tmpDir, 'points.json'), JSON.stringify({ dict, rows }))
 
 const round = v => Math.round(v)
 const summary = {
@@ -173,7 +193,10 @@ const summary = {
   kraje: Object.fromEntries(Object.entries(S.kraje).map(([k, v]) => [k, { n:v.n, poo:round(v.poo) }])),
   impact: IMPACT.filter(x => x.n > 0).map(({ id, icon, l, n, poo }) => ({ id, icon, l, n, poo:round(poo) })),
 }
-writeFileSync(join(outDir, 'summary.json'), JSON.stringify(summary, null, 1))
+writeFileSync(join(tmpDir, 'summary.json'), JSON.stringify(summary, null, 1))
+
+rmSync(finalDir, { recursive: true, force: true })
+renameSync(tmpDir, finalDir)
 
 // ── Výpis ─────────────────────────────────────────────────────────────────────
 const mb = b => (b / 1024 / 1024).toFixed(1) + ' MB'
