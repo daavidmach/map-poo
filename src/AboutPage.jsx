@@ -172,7 +172,7 @@ export default function AboutPage({ onClose }) {
               <div>
                 <b>Národný katalóg otvorených dát</b>
                 <p>Dataset „Plán obnovy a odolnosti – prijímatelia (aktuálny)“, ktorý zverejňuje
-                  Úrad podpredsedu vlády SR pre plán obnovy. Zdroj všetkých projektov, súm a stavov.</p>
+                  Úrad podpredsedu vlády Slovenskej republiky pre Plán obnovy a znalostnú ekonomiku. Zdroj všetkých projektov, súm a stavov.</p>
                 <span>data.slovensko.sk →</span>
               </div>
             </a>
@@ -231,7 +231,7 @@ export default function AboutPage({ onClose }) {
         <footer className="ab-foot">
           <p>
             Nezávislá vizualizácia z verejne dostupných otvorených dát. Nejde o oficiálnu stránku
-            Úradu podpredsedu vlády SR ani planobnovy.sk. Ak nájdete chybu, dajte vedieť — radi ju opravíme.
+            Úradu podpredsedu vlády SR pre Plán obnovy a znalostnú ekonomiku ani planobnovy.sk. Ak nájdete chybu, dajte vedieť — radi ju opravíme.
           </p>
           <button className="ab-cta" onClick={onClose}>🗺️ Späť na mapu</button>
         </footer>

@@ -1111,7 +1111,7 @@ export default function App() {
             <div className="panel-title">Zdroj dát</div>
             <p className="src-txt">
               Oficiálne otvorené dáta o prijímateľoch Plánu obnovy, ktoré zverejňuje
-              <b> Úrad podpredsedu vlády SR pre plán obnovy</b> v Národnom katalógu otvorených dát.
+              <b> Úrad podpredsedu vlády SR pre Plán obnovy a znalostnú ekonomiku</b> v Národnom katalógu otvorených dát.
               Dáta pochádzajú zo systému ISPO.
             </p>
             <ul className="src-list">
