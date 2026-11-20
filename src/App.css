@@ -944,3 +944,11 @@ body.tile-light .kraj-tooltip {
 
 /* typ subjektu — farba textu podľa typu, bez podfarbenia pozadia */
 .ent-lbl[class*="entity-"] { background: transparent !important; padding: 0 !important; }
+
+/* Bez rámčeka (focus outline) po kliknutí na kraj / bod / mapu */
+.leaflet-container :focus,
+.leaflet-container :focus-visible,
+.leaflet-interactive:focus,
+.leaflet-container svg:focus,
+.leaflet-container path:focus { outline: none !important; }
+.leaflet-container { -webkit-tap-highlight-color: transparent; }
