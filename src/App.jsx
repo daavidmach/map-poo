@@ -5,7 +5,8 @@ import 'leaflet.markercluster'
 import 'leaflet.markercluster/dist/MarkerCluster.css'
 import 'leaflet.markercluster/dist/MarkerCluster.Default.css'
 import './App.css'
-import { DETAIL_CHUNK, g, normStav, entityInfo } from './poo-data.mjs'
+import { DETAIL_CHUNK, g, entityInfo, STAV_GROUPS } from './poo-data.mjs'
+import AboutPage from './AboutPage.jsx'
 
 // ── 5 pilierov POO SR ─────────────────────────────────────────────────────────
 // Názvy a poradie podľa planobnovy.sk
@@ -223,33 +224,12 @@ const OKRES = {
   'Spišská Nová Ves':[48.9450,20.5700],'Trebišov':[48.6270,21.7180],
 }
 
-// ── Stav metadata ─────────────────────────────────────────────────────────────
-const STAV_META = {
-  PROJEKT_UKONCENY:                { c:'#4CAF50', l:'Ukončený' },
-  PROJEKT_V_REALIZACII:            { c:'#2196F3', l:'V realizácii' },
-  ZMLUVA_UZAVRETA:                 { c:'#FF9800', l:'Zmluva uzavretá' },
-  ZAZMLUVNENY:                     { c:'#FF9800', l:'Zazmluvnený' },
-  ZIADOST_SCHVALENA:               { c:'#9C27B0', l:'Žiadosť schválená' },
-  SCHVALENY:                       { c:'#9C27B0', l:'Schválený' },
-  ZIADOST_PODANA:                  { c:'#607D8B', l:'Žiadosť podaná' },
-  PROJEKT_ZRUSENY:                 { c:'#f44336', l:'Zrušený' },
-  ZRUSENY:                         { c:'#f44336', l:'Zrušený' },
-  PREDPRIPRAVENY:                  { c:'#FDD835', l:'Predpripravený' },
-  NESTANDARDNE_UKONCENIE_PROJEKTU: { c:'#FF5722', l:'Nest. ukončenie' },
-  ODSTUPENIE_OD_ZMLUVY:            { c:'#FF7043', l:'Odstúpenie od zmluvy' },
-  CIASTOCNE_VYPLATENY:             { c:'#00BCD4', l:'Čiastočne vyplatený' },
-  VYPLATENY:                       { c:'#4CAF50', l:'Vyplatený' },
-  CAKAJUCE_NA_PLATBU:              { c:'#FFCA28', l:'Čakajúce na platbu' },
-  NESCHVALENY:                     { c:'#E53935', l:'Neschválený' },
-  ZAMIETNUTA:                      { c:'#E53935', l:'Zamietnutá' },
-  ZAMIETNUTA_ZIADOST:              { c:'#E53935', l:'Zamietnutá žiadosť' },
-  NOVY:                            { c:'#26C6DA', l:'Nový' },
-  UZAVRETY:                        { c:'#26C6DA', l:'Uzavretý' },
-  NEZNAMY:                         { c:'#546E7A', l:'Neznámy' },
-}
-
-function stavMeta(stav) {
-  return STAV_META[normStav(stav)] || { c:'#546E7A', l: stav || 'Neznámy' }
+// ── Stav: 5 zjednodušených skupín (definované v poo-data.mjs) ───────────────
+const GROUP_ORDER = ['ziadost','priprava','realizacia','ukoncene','zrusene']
+const CONTRACTED  = new Set(['realizacia','ukoncene'])
+const ALOKACIA    = 6.4e9   // celková alokácia POO pre SR (ÚPPV, EK)
+function grpMeta(grp) {
+  return STAV_GROUPS[grp] || { c:'#546E7A', l:'Neznámy', icon:'❔' }
 }
 
 function fmt(n) {
@@ -440,6 +420,18 @@ export default function App() {
   const [openPilier,   setOpenPilier]   = useState(null)   // rozbalená oblasť v paneli
   const [showAll,      setShowAll]      = useState({})     // { ent:true, stav:true }
   const [sheetOpen,    setSheetOpen]    = useState(false)  // mobil: vysunutý panel
+  // Stránka „O projekte“ — adresa #o-projekte, aby sa dala poslať ako odkaz
+  const [aboutOpen,    setAboutOpen]    = useState(() => window.location.hash === '#o-projekte')
+  useEffect(() => {
+    const onHash = () => setAboutOpen(window.location.hash === '#o-projekte')
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+  const openAbout  = () => { window.location.hash = 'o-projekte' }
+  const closeAbout = () => {
+    history.replaceState(null, '', window.location.pathname + window.location.search)
+    setAboutOpen(false)
+  }
   const [filterEntity,    setFilterEntity]    = useState('all')
   const [filterPostavenie,setFilterPostavenie] = useState('all') // 'all' | 'PRIJIMATEL' | 'PARTNER' | 'ZIADATEL'
   const [showKraje,    setShowKraje]    = useState(true)
@@ -468,6 +460,12 @@ export default function App() {
           poo:   r[7] || 0,
           zuc:   r[8] || 0,
           pozad: r[9] || 0,
+          app:   r[10] ?? i,
+          grp:   dict.grp?.[r[11]] || 'ziadost',
+        })).map(p => ({
+          ...p,
+          zm: CONTRACTED.has(p.grp) ? p.poo : 0,   // zazmluvnené
+          zz: CONTRACTED.has(p.grp) ? p.zuc : 0,   // zúčtované
         }))
         setData(arr)
         setLoading(false)
@@ -485,6 +483,8 @@ export default function App() {
       attributionControl: true,
     })
     L.control.zoom({ position:'topright' }).addTo(map)
+    map.attributionControl.addAttribution(
+      'Dáta: <a href="https://data.slovensko.sk/datasety/ba6af44e-51ca-4590-9774-d4aac63cec82" target="_blank" rel="noopener">data.slovensko.sk</a> (ÚPPV, ISPO)')
     // Celé Slovensko na každej obrazovke (aj na úzkom mobile)
     map.fitBounds([[47.73, 16.83], [49.61, 22.57]], { padding:[10, 10] })
 
@@ -586,7 +586,7 @@ export default function App() {
   // aby bolo vždy vidno všetkých 5 oblastí aj pri aktívnom výbere
   const filteredBase = useMemo(() => data.filter(p => {
     if (filterKraj   !== 'all' && !p.kraj.includes(filterKraj))   return false
-    if (filterStav   !== 'all' && p.stav !== filterStav)           return false
+    if (filterStav   !== 'all' && p.grp  !== filterStav)           return false
     if (filterEntity !== 'all' && p.ent.label !== filterEntity)    return false
     if (filterPostavenie !== 'all' && p.pos !== filterPostavenie)  return false
     return true
@@ -622,17 +622,15 @@ export default function App() {
       const jScale = (p.obec && OBEC[p.obec]) ? 0.008 : 0.06
       const jLat = (Math.sin(idx * 127.1 + 0.5) * 0.5) * jScale
       const jLng = (Math.sin(idx * 311.7 + 1.3) * 0.5) * jScale
-      const meta  = stavMeta(p.stav)
+      const meta  = grpMeta(p.grp)
       const suma  = p.poo || p.pozad
       const r     = suma > 0 ? Math.min(14, Math.max(5, 4 + Math.log10(suma/1000+1)*3)) : 5
-      const isActive = p.stav === 'PROJEKT_V_REALIZACII'
       const m = L.circleMarker([base[0]+jLat, base[1]+jLng], {
         radius: r,
         color: meta.c,
-        weight: isActive ? 2.5 : 1.5,
+        weight: 1.5,
         fillColor: meta.c,
         fillOpacity: 0.82,
-        className: isActive ? 'pulse-marker' : '',
       })
       m.options.color = meta.c  // pre cluster dominant farbu
       m.bindPopup('<div class="pc" style="padding:14px">⏳ Načítavam detail…</div>',
@@ -663,15 +661,28 @@ export default function App() {
   }, [filtered, heatMode])
 
   // ── Štatistiky ────────────────────────────────────────────────────────────────
-  const totalPOO        = useMemo(()=>filtered.reduce((s,p)=>s+p.poo,0),[filtered])
+  // Sumy: p.zm / p.zz = zazmluvnené / zúčtované (len projekty v realizácii a ukončené,
+  // jedna suma na žiadosť — duplicity rieši scripts/prepare-data.mjs)
+  // Počty: unikátne žiadosti (p.app), nie riadky datasetu
+  const totalPOO        = useMemo(()=>filtered.reduce((s,p)=>s+p.zm,0),[filtered])
   const totalPozadovana = useMemo(()=>filtered.reduce((s,p)=>s+p.pozad,0),[filtered])
-  const totalZuctovane  = useMemo(()=>filtered.reduce((s,p)=>s+p.zuc,0),[filtered])
+  const totalZuctovane  = useMemo(()=>filtered.reduce((s,p)=>s+p.zz,0),[filtered])
+  const projCount       = useMemo(()=>new Set(filtered.map(p=>p.app)).size,[filtered])
 
-  const byKraj = useMemo(()=>{
-    const m={}
-    filtered.forEach(p=>{ const k=p.kraj||'Neznámy kraj'; m[k]=(m[k]||0)+1 })
-    return Object.entries(m).sort((a,b)=>b[1]-a[1])
-  },[filtered])
+  // pomocník: zoskupí riadky podľa kľúča → { count (unikátne žiadosti), poo }
+  const groupBy = (rows, keyFn) => {
+    const m = {}
+    rows.forEach(p=>{
+      const k = keyFn(p); if (k == null) return
+      const b = m[k] || (m[k] = { apps:new Set(), poo:0 })
+      b.apps.add(p.app); b.poo += p.zm
+    })
+    return Object.fromEntries(Object.entries(m).map(([k,v])=>[k,{ count:v.apps.size, poo:v.poo }]))
+  }
+
+  const krajStats = useMemo(()=>groupBy(filtered, p=>p.kraj||'Neznámy kraj'),[filtered])
+  const byKraj = useMemo(()=>Object.entries(krajStats).map(([k,v])=>[k,v.count]).sort((a,b)=>b[1]-a[1]),[krajStats])
+  const pooByKraj = useMemo(()=>Object.fromEntries(Object.entries(krajStats).map(([k,v])=>[k,v.poo])),[krajStats])
 
   // Choropleth update
   useEffect(() => {
@@ -688,51 +699,35 @@ export default function App() {
     }
   }, [byKraj])
 
+  // 5 skupín stavu v pevnom poradí
   const byStav = useMemo(()=>{
-    const m={}
-    filtered.forEach(p=>{ m[p.stav]=(m[p.stav]||0)+1 })
-    return Object.entries(m).sort((a,b)=>b[1]-a[1])
+    const m = groupBy(filtered, p=>p.grp)
+    return GROUP_ORDER.filter(k=>m[k]).map(k=>[k, m[k].count])
   },[filtered])
 
   // 5 oblastí POO → komponenty (z filteredBase, aby oblasti nezmizli pri výbere)
   const byPilier = useMemo(()=>{
-    const m = Object.fromEntries(PILLAR_ORDER.map(k=>[k,{ count:0, poo:0, komp:{} }]))
-    let other = 0
-    filteredBase.forEach(p=>{
-      const b = m[p.pil]
-      if (!b) { other++; return }
-      b.count++; b.poo += p.poo
-      if (p.kp) {
-        const kk = b.komp[p.kp] || (b.komp[p.kp] = { count:0, poo:0, meta:kodMeta(p.kp) })
-        kk.count++; kk.poo += p.poo
-      }
+    const pil = groupBy(filteredBase, p=>p.pil || null)
+    const komp = {}
+    PILLAR_ORDER.forEach(pk=>{
+      komp[pk] = Object.entries(groupBy(filteredBase.filter(p=>p.pil===pk && p.kp), p=>p.kp))
+        .map(([kp,v])=>[kp,{ ...v, meta:kodMeta(kp) }])
+        .sort((a,b)=>a[0].localeCompare(b[0]))
     })
-    const list = PILLAR_ORDER.map(k=>[k, {
-      ...m[k],
-      komp: Object.entries(m[k].komp).sort((a,b)=>a[0].localeCompare(b[0])),
-    }])
+    const list = PILLAR_ORDER.map(k=>[k, { count:pil[k]?.count||0, poo:pil[k]?.poo||0, komp:komp[k] }])
+    const other = new Set(filteredBase.filter(p=>!p.pil).map(p=>p.app)).size
     return { list, other }
   },[filteredBase])
 
   const byEntity = useMemo(()=>{
-    const m={}
-    filtered.forEach(p=>{
-      const ent = p.ent
-      if (!m[ent.label]) m[ent.label]={ count:0, icon:ent.icon, cls:ent.cls, poo:0 }
-      m[ent.label].count++
-      m[ent.label].poo += p.poo
-    })
-    return Object.entries(m).sort((a,b)=>b[1].count-a[1].count)
-  },[filtered])
-
-  const pooByKraj = useMemo(()=>{
-    const m={}
-    filtered.forEach(p=>{ const k=p.kraj||'Neznámy kraj'; m[k]=(m[k]||0)+p.poo })
-    return m
+    const m = groupBy(filtered, p=>p.ent.label)
+    const meta = {}; filtered.forEach(p=>{ meta[p.ent.label] = p.ent })
+    return Object.entries(m)
+      .map(([label,v])=>[label,{ count:v.count, poo:v.poo, icon:meta[label].icon, cls:meta[label].cls }])
+      .sort((a,b)=>b[1].count-a[1].count)
   },[filtered])
 
   const krajList = useMemo(()=>[...new Set(data.map(p=>p.kraj))].filter(Boolean).sort(),[data])
-  const stavList = useMemo(()=>[...new Set(data.map(p=>p.stav))].filter(Boolean).sort(),[data])
   // Pre filter kódov — zobraz len prefix (K01, K02...)
   // Kódy komponentov zoskupené podľa oblasti — pre select v hlavičke
   const katList  = useMemo(()=>{
@@ -797,6 +792,8 @@ export default function App() {
             <div className="hdr-title">Plán obnovy SR</div>
             <div className="hdr-sub">Mapa projektov POO</div>
           </div>
+          <button className="about-btn" onClick={e=>{ e.stopPropagation(); openAbout() }}
+            title="Čo priniesol plán obnovy, odkiaľ sú dáta">ℹ️ O projekte</button>
         </div>
 
         <div className="hdr-filters">
@@ -807,7 +804,7 @@ export default function App() {
 
           <select className="sel" value={filterStav} onChange={e=>setFilterStav(e.target.value)}>
             <option value="all">Všetky stavy</option>
-            {stavList.map(s=><option key={s} value={s}>{stavMeta(s).l}</option>)}
+            {GROUP_ORDER.map(k=><option key={k} value={k}>{STAV_GROUPS[k].icon} {STAV_GROUPS[k].l}</option>)}
           </select>
 
           <select className="sel sel-wide"
@@ -851,14 +848,14 @@ export default function App() {
            : error  ? <span className="st-err">❌ {error}</span>
            : <>
               <div className="st">
-                <div className="st-n">{filtered.length.toLocaleString('sk')}</div>
+                <div className="st-n">{projCount.toLocaleString('sk')}</div>
                 <div className="st-l">projektov</div>
               </div>
               {totalPOO > 0 ? <>
                 <div className="st-sep"/>
                 <div className="st">
                   <div className="st-n st-green">{fmt(totalPOO)}</div>
-                  <div className="st-l">POO suma</div>
+                  <div className="st-l">zazmluvnené</div>
                 </div>
               </> : totalPozadovana > 0 ? <>
                 <div className="st-sep"/>
@@ -890,7 +887,7 @@ export default function App() {
             <span className="sheet-grip"/>
             <span className="sheet-txt">
               {sheetOpen ? '▾ Skryť panel' : '▴ Filtre a štatistiky'}
-              <b> · {filtered.length.toLocaleString('sk')} projektov</b>
+              <b> · {projCount.toLocaleString('sk')} projektov</b>
             </span>
           </button>
 
@@ -931,8 +928,13 @@ export default function App() {
                     </div>
                   </div>
                 )}
+                {filtered.length === data.length && (
+                  <div className="fin-note">
+                    Alokácia plánu obnovy pre SR: <b>6,4 mld €</b> · zazmluvnené <b>{((totalPOO/ALOKACIA)*100).toFixed(0)} %</b>
+                  </div>
+                )}
               </>) : (
-                <p className="fin-empty-msg">Partneri nemajú priame finančné záznamy v datasete.</p>
+                <p className="fin-empty-msg">Pre tento výber nie sú v datasete finančné údaje (napr. partneri projektov sumu nevykazujú).</p>
               )}
             </div>
           )}
@@ -1084,16 +1086,16 @@ export default function App() {
             </div>
           )}
 
-          {/* ── Stav projektov ──────────────────────────────────── */}
+          {/* ── Stav projektov — 5 zjednodušených skupín ───────────── */}
           <div className="panel">
             <div className="panel-title">Stav projektov</div>
-            {(showAll.stav ? byStav : byStav.slice(0, TOP_N)).map(([stav,count])=>{
-              const meta = stavMeta(stav)
-              const active = filterStav === stav
-              const pct = (count/filtered.length)*100
+            {byStav.map(([grp,count])=>{
+              const meta = grpMeta(grp)
+              const active = filterStav === grp
+              const pct = projCount ? (count/projCount)*100 : 0
               return (
-                <div key={stav} className={`stav-row${active?' stav-active':''}`}
-                  onClick={()=>setFilterStav(active?'all':stav)}
+                <div key={grp} className={`stav-row${active?' stav-active':''}`} title={meta.d}
+                  onClick={()=>setFilterStav(active?'all':grp)}
                   style={{opacity:filterStav!=='all'&&!active?.45:1}}>
                   <div className="stav-dot" style={{background:meta.c,boxShadow:`0 0 6px ${meta.c}bb`}}/>
                   <span className="stav-lbl">{meta.l}</span>
@@ -1102,14 +1104,27 @@ export default function App() {
                 </div>
               )
             })}
-            {byStav.length > TOP_N && (
-              <button className="more-btn" onClick={()=>setShowAll(s=>({...s, stav:!s.stav}))}>
-                {showAll.stav ? '▴ Menej' : `▾ Ďalšie (${byStav.length - TOP_N})`}
-              </button>
-            )}
+          </div>
+
+          {/* ── Zdroj dát ─────────────────────────────────────────── */}
+          <div className="panel panel-source">
+            <div className="panel-title">Zdroj dát</div>
+            <p className="src-txt">
+              Oficiálne otvorené dáta o prijímateľoch Plánu obnovy, ktoré zverejňuje
+              <b> Úrad podpredsedu vlády SR pre plán obnovy</b> v Národnom katalógu otvorených dát.
+              Dáta pochádzajú zo systému ISPO.
+            </p>
+            <ul className="src-list">
+              <li><a href="https://data.slovensko.sk/datasety/ba6af44e-51ca-4590-9774-d4aac63cec82" target="_blank" rel="noopener">📊 data.slovensko.sk — prijímatelia (aktuálny)</a></li>
+              <li><a href="https://ispo.planobnovy.sk/vyzvy" target="_blank" rel="noopener">🗂️ ISPO portál — výzvy</a></li>
+              <li><a href="https://www.planobnovy.sk/" target="_blank" rel="noopener">🌐 planobnovy.sk</a></li>
+            </ul>
+            <button className="src-more" onClick={openAbout}>Čo priniesol plán obnovy →</button>
           </div>
         </aside>
       </div>
+
+      {aboutOpen && <AboutPage onClose={closeAbout} />}
     </div>
   )
 }

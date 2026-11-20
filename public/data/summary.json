@@ -1,0 +1,196 @@
+{
+ "generated": "2026-11-20",
+ "source": "https://data.slovensko.sk/datasety/ba6af44e-51ca-4590-9774-d4aac63cec82",
+ "totals": {
+  "pridelene": 6559087415,
+  "zazmluvnene": 6328713830,
+  "zuctovane": 3615624929,
+  "projekty": 47132,
+  "ziadosti": 65907,
+  "obce": 1774,
+  "prijimatelia": 6180
+ },
+ "groups": {
+  "ukoncene": {
+   "n": 3213,
+   "poo": 616488924,
+   "zuc": 370929476
+  },
+  "zrusene": {
+   "n": 252,
+   "poo": 76360085,
+   "zuc": 128464
+  },
+  "ziadost": {
+   "n": 238,
+   "poo": 92236757,
+   "zuc": 52194476
+  },
+  "realizacia": {
+   "n": 43919,
+   "poo": 5712224906,
+   "zuc": 3244695453
+  },
+  "priprava": {
+   "n": 14,
+   "poo": 138136828,
+   "zuc": 52312046
+  }
+ },
+ "pillars": {
+  "veda": {
+   "n": 5483,
+   "poo": 1250564419,
+   "zuc": 348917864
+  },
+  "vzdelavanie": {
+   "n": 7578,
+   "poo": 1039672750,
+   "zuc": 536249599
+  },
+  "zelena": {
+   "n": 32058,
+   "poo": 2190831950,
+   "zuc": 1850001421
+  },
+  "zdravie": {
+   "n": 1765,
+   "poo": 1185298089,
+   "zuc": 528139028
+  },
+  "sprava": {
+   "n": 245,
+   "poo": 661870364,
+   "zuc": 351911087
+  },
+  "ine": {
+   "n": 3,
+   "poo": 476260,
+   "zuc": 405930
+  }
+ },
+ "kraje": {
+  "Žilinský kraj": {
+   "n": 5973,
+   "poo": 174518841
+  },
+  "Neznámy": {
+   "n": 4709,
+   "poo": 1208214187
+  },
+  "Bratislavský kraj": {
+   "n": 5092,
+   "poo": 3313972083
+  },
+  "Trnavský kraj": {
+   "n": 3072,
+   "poo": 171289806
+  },
+  "Banskobystrický kraj": {
+   "n": 7050,
+   "poo": 421908304
+  },
+  "Prešovský kraj": {
+   "n": 7685,
+   "poo": 381378681
+  },
+  "Nitriansky kraj": {
+   "n": 4303,
+   "poo": 239745934
+  },
+  "Košický kraj": {
+   "n": 5467,
+   "poo": 266791986
+  },
+  "Trenčiansky kraj": {
+   "n": 3781,
+   "poo": 150894009
+  }
+ },
+ "impact": [
+  {
+   "id": "domy",
+   "icon": "🏡",
+   "l": "rodinných domov dostalo podporu na obnovu",
+   "n": 31418,
+   "poo": 465268268
+  },
+  {
+   "id": "stipendia",
+   "icon": "🎓",
+   "l": "štipendií pre študentov a výskumníkov",
+   "n": 3295,
+   "poo": 71211942
+  },
+  {
+   "id": "skolky",
+   "icon": "🧸",
+   "l": "projektov na nové miesta v materských školách",
+   "n": 226,
+   "poo": 136053352
+  },
+  {
+   "id": "nemocnice",
+   "icon": "🏥",
+   "l": "projektov pre modernejšie nemocnice",
+   "n": 104,
+   "poo": 283476874
+  },
+  {
+   "id": "ambulancie",
+   "icon": "🩺",
+   "l": "nových ambulancií všeobecných lekárov",
+   "n": 101,
+   "poo": 6591872
+  },
+  {
+   "id": "komunita",
+   "icon": "🤝",
+   "l": "projektov komunitnej starostlivosti",
+   "n": 145,
+   "poo": 211361208
+  },
+  {
+   "id": "pamiatky",
+   "icon": "🏛️",
+   "l": "historických a pamiatkových budov v obnove",
+   "n": 164,
+   "poo": 115725274
+  },
+  {
+   "id": "energia",
+   "icon": "⚡",
+   "l": "verejných budov so znížením spotreby energie",
+   "n": 106,
+   "poo": 23881320
+  },
+  {
+   "id": "debarier",
+   "icon": "♿",
+   "l": "stredných škôl bez bariér",
+   "n": 145,
+   "poo": 18136672
+  },
+  {
+   "id": "cyklo",
+   "icon": "🚲",
+   "l": "projektov cyklistickej infraštruktúry",
+   "n": 25,
+   "poo": 25862492
+  },
+  {
+   "id": "inovacie",
+   "icon": "💡",
+   "l": "inovačných projektov firiem a vedcov",
+   "n": 1374,
+   "poo": 73212338
+  },
+  {
+   "id": "dusevne",
+   "icon": "🧠",
+   "l": "odborníkov vzdelaných v duševnom zdraví",
+   "n": 1115,
+   "poo": 1331467
+  }
+ ]
+}

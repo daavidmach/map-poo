@@ -111,6 +111,48 @@ export const DETAIL_FIELDS = [
   ['projekt evidenčnej výzvy','projekt evidencnej vyzvy'],
 ]
 
+// ── Oblasť (pilier) podľa kódu komponentu: K01…K19, R* = reformy ─────────────
+const KOMP_PILLAR = [ '',
+  'zelena','zelena','zelena','zelena','zelena',        // K01–K05
+  'vzdelavanie','vzdelavanie','vzdelavanie',           // K06–K08
+  'veda','veda',                                       // K09–K10
+  'zdravie','zdravie','zdravie',                       // K11–K13
+  'sprava','sprava','sprava','sprava','sprava',        // K14–K18
+  'zelena',                                            // K19 REPowerEU
+]
+export function pillarOf(kod) {
+  const k = (kod || '').trim().toUpperCase()
+  if (k.startsWith('R')) return 'sprava'
+  const m = k.match(/^K(\d+)/)
+  return m ? (KOMP_PILLAR[parseInt(m[1], 10)] || '') : ''
+}
+
+// ── Zjednodušené stavy pre verejnosť (5 skupín) ───────────────────────────────
+export const STAV_GROUPS = {
+  ziadost:    { l:'Žiadosť podaná',           c:'#78909C', icon:'📋', d:'Žiadosť bez zmluvy — v posudzovaní alebo schválená' },
+  priprava:   { l:'Nový / schválený',         c:'#FDD835', icon:'🛠️', d:'Nový alebo schválený projekt pred zmluvou' },
+  realizacia: { l:'V realizácii',             c:'#2196F3', icon:'🔨', d:'Zazmluvnený alebo národný projekt, ktorý beží' },
+  ukoncene:   { l:'Ukončené',                 c:'#4CAF50', icon:'✅', d:'Projekt dokončený / vyplatený' },
+  zrusene:    { l:'Zrušené / neúspešné',      c:'#E53935', icon:'✖️', d:'Neschválené, späťvzaté, odstúpenie od zmluvy' },
+}
+const ST = {
+  // PREDPRIPRAVENY = národné projekty pripravené rezortmi bez výzvy — v dátach už majú zúčtované peniaze
+  realizacia: ['ZAZMLUVNENY','ZMLUVA_UZAVRETA','PROJEKT_V_REALIZACII','CAKAJUCE_NA_PLATBU','CIASTOCNE_VYPLATENY','UZAVRETY','PREDPRIPRAVENY'],
+  ukoncene:   ['PROJEKT_UKONCENY','VYPLATENY'],
+  priprava:   ['NOVY','SCHVALENY','ZIADOST_SCHVALENA','ZIADOST_PODANA'],
+  zrusene:    ['ODSTUPENIE_OD_ZMLUVY','NESTANDARDNE_UKONCENIE_PROJEKTU','PROJEKT_ZRUSENY','ZRUSENY',
+               'NESCHVALENY','ZAMIETNUTA','ZAMIETNUTA_ZIADOST'],
+}
+const ST_MAP = Object.fromEntries(Object.entries(ST).flatMap(([g, l]) => l.map(s => [s, g])))
+// stav = normalizovaný stav projektu, pos = postavenie, posudenie = výsledok posúdenia žiadosti
+export function stavGroup(stav, pos, posudenie) {
+  if (ST_MAP[stav]) return ST_MAP[stav]
+  const ps = normStav(posudenie)
+  if (pos === 'PRIJIMATEL') return 'realizacia'          // prijímateľ = má zmluvu
+  if (ps === 'NESPLNENE_PODMIENKY' || ps === 'SPATVZATIE') return 'zrusene'
+  return 'ziadost'
+}
+
 // ── Právna forma → typ subjektu ───────────────────────────────────────────────
 const PRAVNA_FORMA_MAP = [
   [/spoločnosť s ručením obmedzeným|s\.r\.o/i,  { icon:'🏢', label:'s.r.o.', cls:'entity-sro' }],
