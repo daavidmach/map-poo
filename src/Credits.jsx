@@ -3,8 +3,7 @@
 
 // Adresa Ostrovníka (prepojenie na tím ISPO). Keď bude nasadený, doplň sem
 // napr. 'https://ostrovnik.pages.dev/#tim-ispo' — dovtedy je „Tím ISPO“ len text.
-export const OSTROVNIK_URL = ''
-
+export const OSTROVNIK_URL = 'https://ostrovnik.pages.dev/#tim/ispo'
 export const REPO_URL    = 'https://github.com/daavidmach/map-poo'
 export const DATASET_URL = 'https://data.slovensko.sk/datasety/ba6af44e-51ca-4590-9774-d4aac63cec82'
 export const ISPO_URL    = 'https://ispo.planobnovy.sk/vyzvy'
